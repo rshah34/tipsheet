@@ -8,13 +8,12 @@ import { ReportList } from "@/components/Reports";
 import { SortableTable, type Column } from "@/components/SortableTable";
 import { Card, Delta, Empty, PageState, SectionTitle, Segmented, StatusBadge, TeamLink, Tile } from "@/components/ui";
 import { useApi } from "@/lib/api";
-import { clock, fairOdds, num, pct, shortDate, STAT_LABELS } from "@/lib/format";
+import { clock, fairOdds, madeOf, num, pct, shortDate, SHOT_TYPES, shotPct, STAT_LABELS } from "@/lib/format";
 import { MARKETS, marketValue } from "@/lib/markets";
 import type { PlayerDetail, PlayerGame, StatKey } from "@/lib/types";
 
 type Venue = "all" | "home" | "away";
 const WINDOWS = [5, 10, 20] as const;
-const LOG_STATS: StatKey[] = ["pts", "reb", "ast", "fg3m", "stl", "blk", "tov"];
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const halfPoint = (x: number) => Math.max(0.5, Math.floor(x) + 0.5);
 
@@ -267,17 +266,30 @@ export default function PlayerPage() {
   const otherSeasons = player.seasons.filter((s) => s !== season && played(s).length > 0);
   const teamsThatSeason = [...new Set(games.map((g) => g.team).filter(Boolean))].reverse();
   const mean = (list: PlayerGame[], k: StatKey | "min") => avg(list.map((g) => g[k]));
+  // Shooting over a stretch of games: all makes over all attempts.
+  const shooting = (list: PlayerGame[], t: (typeof SHOT_TYPES)[number]) =>
+    shotPct(list.reduce((a, g) => a + g[t.made], 0), list.reduce((a, g) => a + g[t.tried], 0));
+  const stat = (k: StatKey | "min"): Column<PlayerGame> => ({
+    key: k,
+    header: STAT_LABELS[k],
+    align: "right",
+    sort: (g) => g[k],
+    render: (g) => num(g[k], 0),
+  });
   const columns: Column<PlayerGame>[] = [
     { key: "date", header: "Date", sort: (g) => g.date, render: (g) => <Link href={`/games/${g.game_id}`} className="hover:underline">{shortDate(g.date)}</Link> },
     { key: "opp", header: "Opp", sort: (g) => g.opp, render: (g) => `${g.home === false ? "@" : "vs"} ${g.opp ?? ""}` },
     { key: "result", header: "Result", render: (g) => g.result ?? "" },
-    ...(["min", ...LOG_STATS] as const).map((k): Column<PlayerGame> => ({
-      key: k,
-      header: STAT_LABELS[k],
+    ...(["min", "pts"] as const).map(stat),
+    // Made-attempted, sorted by makes; the percentage shows on hover.
+    ...SHOT_TYPES.map((t): Column<PlayerGame> => ({
+      key: t.key,
+      header: t.label,
       align: "right",
-      sort: (g) => g[k],
-      render: (g) => num(g[k], 0),
+      sort: (g) => g[t.made],
+      render: (g) => <span title={pct(shotPct(g[t.made], g[t.tried]), 1)}>{madeOf(g[t.made], g[t.tried])}</span>,
     })),
+    ...(["reb", "ast", "stl", "blk", "tov"] as const).map(stat),
   ];
 
   return (
@@ -340,7 +352,7 @@ export default function PlayerPage() {
         </Empty>
       ) : (
         <>
-          <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {(["pts", "reb", "ast", "fg3m", "min"] as const).map((k) => {
               const s = mean(games, k)!;
               const recent = mean(games.slice(0, 5), k)!;
@@ -353,6 +365,23 @@ export default function PlayerPage() {
                     <span className="tnum">
                       Last 5: {num(recent)}{" "}
                       <Delta value={recent - s} threshold={Math.max(0.1 * s, 0.2)} />
+                    </span>
+                  }
+                />
+              );
+            })}
+            {SHOT_TYPES.map((t) => {
+              const s = shooting(games, t);
+              const recent = shooting(games.slice(0, 5), t);
+              return (
+                <Tile
+                  key={t.key}
+                  label={`${t.label}%`}
+                  value={pct(s, 1)}
+                  hint={
+                    <span className="tnum">
+                      Last 5: {pct(recent, 1)}{" "}
+                      {s != null && recent != null && <Delta value={(recent - s) * 100} threshold={3} suffix="%" />}
                     </span>
                   }
                 />

@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { SortableTable, type Column } from "@/components/SortableTable";
 import { Card, PageState, Segmented, Select, TeamLink } from "@/components/ui";
 import { useApi } from "@/lib/api";
-import { num, signed, STAT_LABELS } from "@/lib/format";
+import { num, pct, signed, SHOT_TYPES, STAT_LABELS } from "@/lib/format";
 import { pra } from "@/lib/markets";
 import type { PlayerRow, PlayersIndex, StatKey } from "@/lib/types";
 
@@ -60,11 +60,18 @@ export default function PlayersPage() {
       render: (r) => num(r[window][s]),
     })),
     { key: "pra", header: "PRA", align: "right", title: "Points + rebounds + assists", sort: (r) => pra(r[window]), render: (r) => num(pra(r[window])) },
+    ...SHOT_TYPES.map((t): Column<PlayerRow> => ({
+      key: t.pct,
+      header: `${t.label}%`,
+      align: "right",
+      title: `${t.label} percentage: all makes over all attempts in these games`,
+      sort: (r) => r[window][t.pct],
+      render: (r) => pct(r[window][t.pct], 1),
+    })),
   ];
   if (window !== "season") {
-    // Who is trending: the recent window against the season, in the two numbers that move lines.
+    // Who is trending: recent scoring against the season.
     columns.push(
-      { key: "dmin", header: "MIN Δ", align: "right", title: "Recent minutes minus season minutes", sort: (r) => r[window].min - r.season.min, render: (r) => signed(r[window].min - r.season.min) },
       { key: "dpts", header: "PTS Δ", align: "right", title: "Recent points minus season points", sort: (r) => r[window].pts - r.season.pts, render: (r) => signed(r[window].pts - r.season.pts) },
     );
   }

@@ -16,10 +16,17 @@ from tipsheet.features.props import (
 )
 
 
+def shots_for(pts):
+    """Shots that add up to `pts` (twos at the league rate, a free throw for an odd
+    point), since points are projected from shots."""
+    fgm = pts // 2
+    return {"fgm": fgm, "fga": round(fgm / props.LEAGUE_2P), "ftm": pts % 2, "fta": pts % 2}
+
+
 def _log(n, minutes=30.0, pts=20, start=date(2026, 1, 1), **stats):
     return [
         GameLine(game_id=f"g{i}", game_date=start + timedelta(days=2 * i), season="2025-26",
-                 team_id=1, opp_id=2, minutes=minutes, pts=pts, **stats)
+                 team_id=1, opp_id=2, minutes=minutes, pts=pts, **(shots_for(pts) | stats))
         for i in range(n)
     ]
 
@@ -60,8 +67,9 @@ def test_projection_needs_a_minimum_sample():
 def test_steady_player_projects_his_average_and_combos_add_up():
     proj = project(_log(30, minutes=32, pts=24, reb=8, ast=5))
     assert proj.minutes == pytest.approx(32.0)
-    assert proj.mean("player_points") == pytest.approx(24.0)
-    assert proj.mean("player_points_rebounds_assists") == pytest.approx(37.0)
+    # Within a hair: his shooting is pulled a touch toward the league's.
+    assert proj.mean("player_points") == pytest.approx(24.0, abs=0.1)
+    assert proj.mean("player_points_rebounds_assists") == pytest.approx(37.0, abs=0.1)
 
 
 def test_minutes_follow_a_recent_role_change_while_rate_stays_put():
@@ -83,6 +91,19 @@ def test_a_new_season_starts_from_last_seasons_role_not_its_last_few_games():
                     season="2026-27", team_id=1, opp_id=2, minutes=24.0, pts=15)
            for i in range(12)]
     assert project(log + new, season="2026-27").minutes == pytest.approx(24.0, abs=0.5)
+
+
+def test_a_cold_shooting_night_counts_for_less_than_a_drop_in_shots():
+    usual = _log(25, minutes=32, pts=20, fgm=10, fga=18)
+    last = date(2026, 3, 1)
+    cold = GameLine(game_id="x", game_date=last, season="2025-26", team_id=1, opp_id=2,
+                    minutes=32, pts=2, fgm=1, fga=13)          # usual volume, 1 for 13
+    fewer = GameLine(game_id="x", game_date=last, season="2025-26", team_id=1, opp_id=2,
+                     minutes=32, pts=2, fgm=1, fga=2)          # usual shooting, 2 shots
+    after_cold = project(usual + [cold]).mean("player_points")
+    after_fewer = project(usual + [fewer]).mean("player_points")
+    # Same 2 points, but a cold night is mostly luck; fewer shots is a real signal.
+    assert after_fewer < after_cold < 20
 
 
 def test_opponent_factor_and_adjustment_scale_the_mean():

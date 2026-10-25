@@ -15,6 +15,19 @@ export const STAT_LABELS: Record<StatKey | "min" | "pra", string> = {
 export const pct = (v: number | null | undefined, digits = 0) =>
   v == null ? "—" : `${(v * 100).toFixed(digits)}%`;
 
+/** Makes over attempts, the way a box score shows them: "7-15". */
+export const madeOf = (made: number, attempts: number) => `${made}-${attempts}`;
+
+/** A shooting percentage from totals; null with no attempts. */
+export const shotPct = (made: number, attempts: number) => (attempts > 0 ? made / attempts : null);
+
+/** The three shot types: label, makes, attempts. */
+export const SHOT_TYPES = [
+  { key: "fg", label: "FG", made: "fgm", tried: "fga", pct: "fg_pct" },
+  { key: "fg3", label: "3P", made: "fg3m", tried: "fg3a", pct: "fg3_pct" },
+  { key: "ft", label: "FT", made: "ftm", tried: "fta", pct: "ft_pct" },
+] as const;
+
 export const num = (v: number | null | undefined, digits = 1) =>
   v == null ? "—" : v.toFixed(digits);
 

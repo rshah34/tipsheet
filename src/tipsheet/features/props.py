@@ -196,6 +196,12 @@ class Params:
     # before this season's first and fading with `hl_minutes` (backtested on three
     # season starts: minutes error 4.7 -> 4.4 in each team's first 15 games).
     season_prior: float = 2.0
+    # Points and threes are shots taken x shots made: how often he shoots follows his
+    # recent games, how well he shoots trusts a much longer record (a cold night is
+    # mostly luck). Backtested on three seasons: better on every market's Brier.
+    hl_volume: float = 10.0        # half-life (games) for attempts per minute
+    hl_eff: float = 80.0           # half-life (games) for shooting percentages
+    eff_prior: float = 100.0       # attempts' worth of league-average shooting
 
 
 DEFAULT_PARAMS = Params()
@@ -217,6 +223,7 @@ class GameLine:
     stl: int = 0
     blk: int = 0
     fg3m: int = 0
+    fg3a: int = 0
     tov: int = 0
     fgm: int = 0
     fga: int = 0
@@ -343,6 +350,12 @@ def stat_guide(proj: Projection, bet_market: str) -> dict[str, dict]:
 # --------------------------------------------------------------------------- #
 # Projection (pure).
 # --------------------------------------------------------------------------- #
+# League shooting, 2022-23 through 2025-26 (steady to within a point a season): where a
+# player's percentages start before he has many attempts.
+LEAGUE_2P, LEAGUE_3P, LEAGUE_FT = 0.547, 0.362, 0.781
+_FROM_SHOTS = ("pts", "fg3m")
+
+
 def _weights(n: int, half_life: float) -> list[float]:
     """Exponential recency weights for a chronological log (last = most recent)."""
     return [0.5 ** ((n - 1 - i) / half_life) for i in range(n)]
@@ -413,8 +426,31 @@ def project(
         return None
     means: dict[str, float] = {}
     for s in BASE_STATS:
+        if s in _FROM_SHOTS:
+            continue
         rate = sum(w * getattr(g, s) for w, g in zip(wr, log)) / weighted_min
         means[s] = minutes * rate * opp.get(s, 1.0) * adj.mult(s)
+    # Points and threes from shots (see Params).
+    wv = _weights(n, params.hl_volume)
+    wv_min = sum(w * g.minutes for w, g in zip(wv, log))
+    we = _weights(n, params.hl_eff)
+
+    def per_min(f):
+        return sum(w * f(g) for w, g in zip(wv, log)) / wv_min
+
+    def shooting(made, tried, league):
+        k = params.eff_prior
+        tries = sum(w * tried(g) for w, g in zip(we, log)) + k
+        return (sum(w * made(g) for w, g in zip(we, log)) + k * league) / tries if tries else league
+
+    a2, a3 = per_min(lambda g: g.fga - g.fg3a), per_min(lambda g: g.fg3a)
+    aft = per_min(lambda g: g.fta)
+    p2 = shooting(lambda g: g.fgm - g.fg3m, lambda g: g.fga - g.fg3a, LEAGUE_2P)
+    p3 = shooting(lambda g: g.fg3m, lambda g: g.fg3a, LEAGUE_3P)
+    pft = shooting(lambda g: g.ftm, lambda g: g.fta, LEAGUE_FT)
+    per_minute = {"pts": 2 * a2 * p2 + 3 * a3 * p3 + aft * pft, "fg3m": a3 * p3}
+    for s in _FROM_SHOTS:
+        means[s] = minutes * per_minute[s] * opp.get(s, 1.0) * adj.mult(s)
 
     recent = log[-params.phi_window:]
     spread = adj.spread_mult * (1 + _THIN_SPREAD * max(0.0, 1 - n / _THIN_LOG))
@@ -809,7 +845,7 @@ def load_props_data(session: Session) -> PropsData:
                 game_id=r.game_id, game_date=g.game_date, season=g.season, team_id=r.team_id,
                 opp_id=g.away_id if r.team_id == g.home_id else g.home_id, minutes=minutes,
                 pts=r.points or 0, reb=r.rebounds or 0, ast=r.assists or 0, stl=r.steals or 0,
-                blk=r.blocks or 0, fg3m=r.fg3m or 0, tov=r.turnovers or 0,
+                blk=r.blocks or 0, fg3m=r.fg3m or 0, fg3a=r.fg3a or 0, tov=r.turnovers or 0,
                 fgm=r.fgm or 0, fga=r.fga or 0, ftm=r.ftm or 0, fta=r.fta or 0,
             )
         )

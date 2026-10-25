@@ -5,7 +5,10 @@ export type StatLine = Record<StatKey, number> & { min: number };
 /** Shot counts, carried for fantasy scoring. */
 export type ShotKey = "fgm" | "fga" | "ftm" | "fta";
 export type FullLine = StatLine & Record<ShotKey, number>;
-export type Averages = FullLine & { gp: number };
+/** What happened in a game: the full line plus three-point attempts. */
+export type BoxLine = FullLine & { fg3a: number };
+/** Percentages are from the totals (all makes over all attempts); null with no attempts. */
+export type Averages = BoxLine & { gp: number; fg_pct: number | null; fg3_pct: number | null; ft_pct: number | null };
 
 export interface TeamRef {
   id: number;
@@ -126,7 +129,7 @@ export interface GamePlayer {
   name: string;
   status: string | null;
   proj: StatLine | null;
-  actual: StatLine | null;
+  actual: BoxLine | null;
   /** Before the game: per-game averages from `avg_season`, his most recent season with games. */
   avg: (StatLine & { gp: number }) | null;
   avg_season: string | null;
@@ -180,7 +183,7 @@ export interface PlayersIndex {
   players: PlayerRow[];
 }
 
-export interface PlayerGame extends StatLine {
+export interface PlayerGame extends BoxLine {
   game_id: string;
   date: string;
   season: string;

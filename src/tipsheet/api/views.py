@@ -36,7 +36,6 @@ from tipsheet.db.models import (
 from tipsheet.features.props import (
     MARKET_LABELS,
     MARKETS,
-    SHOOTING,
     GameLine,
     Projection,
     PropsData,
@@ -50,6 +49,8 @@ from tipsheet.features.props import (
 )
 
 STATS = ("pts", "reb", "ast", "fg3m", "stl", "blk", "tov")
+# Makes and attempts, for the box score and the shooting percentages.
+SHOTS = ("fgm", "fga", "fg3a", "ftm", "fta")
 _BOX = {"pts": "points", "reb": "rebounds", "ast": "assists", "fg3m": "fg3m",
         "stl": "steals", "blk": "blocks", "tov": "turnovers"}
 # The box-score history takes ~0.3s to load; pages share one copy for a couple of minutes.
@@ -87,8 +88,14 @@ def averages(lines: list[GameLine], last: int | None = None) -> dict | None:
         return None
     n = len(rows)
     out = {"gp": n, "min": round(sum(g.minutes for g in rows) / n, 1)}
-    for s in STATS + SHOOTING:
+    for s in STATS + SHOTS:
         out[s] = round(sum(getattr(g, s) for g in rows) / n, 1)
+    # Percentages from the totals, as the league computes them: all makes over all
+    # attempts, not an average of each game's percentage.
+    for key, made, tried in (("fg_pct", "fgm", "fga"), ("fg3_pct", "fg3m", "fg3a"),
+                             ("ft_pct", "ftm", "fta")):
+        attempts = sum(getattr(g, tried) for g in rows)
+        out[key] = round(sum(getattr(g, made) for g in rows) / attempts, 3) if attempts else None
     return out
 
 
@@ -241,7 +248,7 @@ def player_detail(session: Session, player_id: int) -> dict | None:
         row = {"game_id": g.game_id, "date": g.game_date.isoformat(), "season": g.season,
                "team": teams.get(g.team_id, {}).get("abbr"),
                "opp": teams.get(g.opp_id, {}).get("abbr"), "min": round(g.minutes, 1)}
-        row.update({s: getattr(g, s) for s in STATS})
+        row.update({s: getattr(g, s) for s in STATS + SHOTS})
         game = scores.get(g.game_id)
         if game is not None:
             home = game.home_team_id == g.team_id
@@ -525,7 +532,8 @@ def _player_row(pid: int, name: str, proj: Projection | None, status: str | None
         row["notes"] = proj.notes
     if actual is not None:
         row["actual"] = {"min": round(float(actual.minutes or 0), 1),
-                         **{s: getattr(actual, col) or 0 for s, col in _BOX.items()}}
+                         **{s: getattr(actual, col) or 0 for s, col in _BOX.items()},
+                         **{s: getattr(actual, s) or 0 for s in SHOTS}}
     return row
 
 

@@ -12,8 +12,10 @@ from tipsheet.features.props import GameLine, project
 
 
 def _log(n, minutes=30.0, pts=20, reb=5, ast=4):
+    fgm = pts // 2     # shots that add up to the points: points are projected from shots
     return [GameLine(game_id=f"g{i}", game_date=date(2026, 1, 1) + timedelta(days=2 * i),
-                     season="2025-26", team_id=1, opp_id=2, minutes=minutes, pts=pts, reb=reb, ast=ast)
+                     season="2025-26", team_id=1, opp_id=2, minutes=minutes, pts=pts, reb=reb, ast=ast,
+                     fgm=fgm, fga=round(fgm / 0.547), ftm=pts % 2, fta=pts % 2)
             for i in range(n)]
 
 
@@ -35,7 +37,8 @@ def test_averages_over_a_season_and_a_recent_window():
     assert (season["gp"], season["pts"], season["min"]) == (15, 14.0, 23.3)
     assert views.averages(log, 5) == {"gp": 5, "min": 30.0, "pts": 22.0, "reb": 5.0, "ast": 4.0,
                                       "fg3m": 0.0, "stl": 0.0, "blk": 0.0, "tov": 0.0,
-                                      "fgm": 0.0, "fga": 0.0, "ftm": 0.0, "fta": 0.0}
+                                      "fgm": 11.0, "fga": 20.0, "fg3a": 0.0, "ftm": 0.0, "fta": 0.0,
+                                      "fg_pct": 0.55, "fg3_pct": None, "ft_pct": None}
     assert views.averages([]) is None
 
 
@@ -144,3 +147,16 @@ def test_the_basketball_day_turns_over_at_six_eastern():
     assert views.league_today(late_game) == date(2026, 10, 23)
     morning = datetime(2026, 10, 24, 10, 30, tzinfo=timezone.utc)     # 6:30 AM ET
     assert views.league_today(morning) == date(2026, 10, 24)
+
+
+def test_shooting_percentages_come_from_totals_not_an_average_of_games():
+    games = [GameLine(game_id="a", game_date=date(2026, 1, 1), season="2025-26", team_id=1,
+                      opp_id=2, minutes=30, fgm=1, fga=1, fg3m=0, fg3a=0, ftm=0, fta=0),
+             GameLine(game_id="b", game_date=date(2026, 1, 3), season="2025-26", team_id=1,
+                      opp_id=2, minutes=30, fgm=4, fga=9, fg3m=2, fg3a=5, ftm=3, fta=4)]
+    avg = views.averages(games)
+    assert avg["fg_pct"] == 0.5                  # 5 of 10, not the mean of 100% and 44%
+    assert avg["fg3_pct"] == 0.4 and avg["ft_pct"] == 0.75
+    assert avg["fga"] == 5.0 and avg["fg3a"] == 2.5
+    none = views.averages(games[:1])
+    assert none["fg3_pct"] is None and none["ft_pct"] is None   # no attempts, no percentage

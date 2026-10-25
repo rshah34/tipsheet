@@ -8,14 +8,16 @@ import { InjuryList, ReportList } from "@/components/Reports";
 import { SortableTable, type Column } from "@/components/SortableTable";
 import { Card, doubtLabel, PageState, SectionTitle, Segmented, StatusBadge, TeamLink, TeamMark } from "@/components/ui";
 import { useApi } from "@/lib/api";
-import { clock, longDate, num, pct, seriesLine, STAT_LABELS } from "@/lib/format";
+import { clock, longDate, madeOf, num, pct, seriesLine, SHOT_TYPES, shotPct, STAT_LABELS } from "@/lib/format";
 import { pra } from "@/lib/markets";
 import type { GameDetail, GamePlayer, GameSide, StatLine } from "@/lib/types";
 
 type View = "actual" | "avg" | "proj";
 type Col = "min" | "pts" | "reb" | "ast" | "fg3m" | "stl" | "blk" | "tov" | "pra";
-// A played game reads like a box score; a projection adds the combined line the picks are made in.
-const BOX_COLS: Col[] = ["min", "pts", "reb", "ast", "fg3m", "stl", "blk", "tov"];
+// A played game reads like a box score (shots go after points, as makes-attempts); a
+// projection adds the combined line the picks are made in.
+const BOX_LEAD: Col[] = ["min", "pts"];
+const BOX_REST: Col[] = ["reb", "ast", "stl", "blk", "tov"];
 const PROJ_COLS: Col[] = ["min", "pts", "reb", "ast", "fg3m", "pra"];
 const value = (line: StatLine | null, key: Col) => (line == null ? null : key === "pra" ? pra(line) : line[key]);
 
@@ -49,6 +51,26 @@ function Adjustments({ players }: { players: GamePlayer[] }) {
 function BoxScore({ side, view }: { side: GameSide; view: View }) {
   const line = (r: GamePlayer) => (view === "actual" ? r.actual : view === "avg" ? r.avg : r.proj);
   const players = side.players.filter((r) => line(r) != null);
+  const stat = (key: Col): Column<GamePlayer> => ({
+    key,
+    header: STAT_LABELS[key],
+    align: "right",
+    sort: (r) => value(line(r), key),
+    render: (r) => num(value(line(r), key), view === "actual" || (view === "proj" && key === "min") ? 0 : 1),
+  });
+  // Made-attempted, sorted by makes; the percentage shows on hover.
+  const shots = (t: (typeof SHOT_TYPES)[number]): Column<GamePlayer> => ({
+    key: t.key,
+    header: t.label,
+    align: "right",
+    sort: (r) => r.actual?.[t.made] ?? null,
+    render: (r) =>
+      r.actual ? (
+        <span title={pct(shotPct(r.actual[t.made], r.actual[t.tried]), 1)}>
+          {madeOf(r.actual[t.made], r.actual[t.tried])}
+        </span>
+      ) : null,
+  });
   const columns: Column<GamePlayer>[] = [
     {
       key: "name",
@@ -65,13 +87,8 @@ function BoxScore({ side, view }: { side: GameSide; view: View }) {
         </span>
       ),
     },
-    ...(view === "actual" ? BOX_COLS : PROJ_COLS).map((key): Column<GamePlayer> => ({
-      key,
-      header: STAT_LABELS[key],
-      align: "right",
-      sort: (r) => value(line(r), key),
-      render: (r) => num(value(line(r), key), view === "actual" || (view === "proj" && key === "min") ? 0 : 1),
-    })),
+    ...(view === "actual" ? BOX_LEAD : PROJ_COLS).map(stat),
+    ...(view === "actual" ? [...SHOT_TYPES.map(shots), ...BOX_REST.map(stat)] : []),
   ];
   return (
     <Card className="p-4">
@@ -197,7 +214,8 @@ export default function GamePage() {
           ]}
         />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* A full box score is too wide to sit side by side, so the teams stack. */}
+      <div className={`grid gap-4 ${view === "actual" ? "" : "lg:grid-cols-2"}`}>
         <BoxScore side={game.away_side} view={view} />
         <BoxScore side={game.home_side} view={view} />
       </div>
