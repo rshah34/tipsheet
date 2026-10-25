@@ -115,8 +115,9 @@ All commands run via `uv run tipsheet <command>`.
 
 ### Daily operation (in season)
 ```bash
+tipsheet morning          # 8 AM catch-up: last night's results + settlement, rosters, injuries, news feeds (free)
 tipsheet daily            # settle finished games → rosters + injuries + news → predict → current odds → 2–3 picks → text them
-tipsheet daily-close      # near tip: re-check rosters + injuries (text if a pick is undercut) + the closing prices CLV is measured against
+tipsheet daily-close      # near tip: rosters + injuries + new news, re-check picks (text if one is undercut) + the closing prices CLV is measured against
 ```
 `scripts/schedule.sh install` runs these on a timer — see [scripts/SCHEDULING.md](scripts/SCHEDULING.md),
 which also covers setting up the texts.

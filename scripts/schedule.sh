@@ -36,10 +36,10 @@ case "$ACTION" in
       echo "loaded $job  ($dest)"
     done
     # Nothing is owed from before the install: a job's first run is its next time.
-    for name in daily close; do
+    for name in morning daily close; do
       [ -e "$REPO/logs/.last-$name" ] || date +%s > "$REPO/logs/.last-$name"
     done
-    echo "Done. Runs at 14:30 (daily) and 15:30 + 18:30 (close), Pacific time."
+    echo "Done. Runs at 8:00 (morning), 14:30 (daily), and 15:45 + 17:45 (pre-game checks), Pacific time."
     ;;
   uninstall)
     remove_all

@@ -46,6 +46,8 @@ def _stub_agents(monkeypatch, teams):
     for agent, fn, result in [
         (pipeline.data_agent, "run_nightly", {}),
         (pipeline.data_agent, "sync_rosters", 0),
+        (pipeline.data_agent, "sync_injuries", 0),
+        (pipeline.picks, "recheck", []),
         (pipeline.data_agent, "sync_schedule", 0),
         (pipeline.data_agent, "mark_closing_lines", 0),
         (pipeline.evaluation_agent, "run_evaluation", {}),
@@ -82,6 +84,31 @@ def test_run_daily_with_no_games_only_settles(monkeypatch):
 
     assert "notify" not in result and "predict" not in result
     assert calls[-1] == "sync_news" and "sync_odds" not in calls
+
+
+CATCH_UP = ["run_nightly", "sync_rosters", "sync_schedule", "mark_closing_lines", "run_evaluation",
+            "settle_bets", "settle_prop_bets", "sync_news"]
+
+
+def test_the_morning_run_only_catches_up(monkeypatch):
+    calls = _stub_agents(monkeypatch, teams={1, 2})
+    result = pipeline.run_morning(session=None)
+    assert all(pipeline.summarize_run(result).values())
+    assert calls == CATCH_UP          # no reading, no odds, no text
+
+
+def test_the_pre_game_check_reads_new_news_before_rechecking_picks(monkeypatch):
+    calls = _stub_agents(monkeypatch, teams={1, 2})
+    result = pipeline.run_close(session=None)
+    assert all(pipeline.summarize_run(result).values())
+    assert calls == ["sync_rosters", "sync_injuries", "sync_news", "extract_signals", "recheck",
+                     "sync_odds", "sync_prop_odds"]
+
+
+def test_the_pre_game_check_reads_nothing_once_every_game_has_tipped(monkeypatch):
+    calls = _stub_agents(monkeypatch, teams=set())
+    pipeline.run_close(session=None)
+    assert "extract_signals" not in calls and "sync_odds" not in calls
 
 
 def test_a_failed_step_rolls_back_so_the_next_one_can_run():

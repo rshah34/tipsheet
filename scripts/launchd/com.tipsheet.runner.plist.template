@@ -8,14 +8,16 @@
     <array>
         <string>__REPO__/scripts/run_due.sh</string>
     </array>
-    <!-- Every hour at :30. run_due.sh decides what, if anything, is due, on Pacific
+    <!-- Every 15 minutes. run_due.sh decides what, if anything, is due, on Pacific
          time whatever timezone the Mac is in, so nothing here changes when you travel.
-         A wake after missed hours fires this once, and the script catches up. -->
+         A wake after missed runs fires this once, and the script catches up. -->
     <key>StartCalendarInterval</key>
-    <dict>
-        <key>Minute</key>
-        <integer>30</integer>
-    </dict>
+    <array>
+        <dict><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Minute</key><integer>15</integer></dict>
+        <dict><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Minute</key><integer>45</integer></dict>
+    </array>
     <key>StandardOutPath</key>
     <string>__REPO__/logs/launchd.runner.out</string>
     <key>StandardErrorPath</key>

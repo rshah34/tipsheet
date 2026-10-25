@@ -1,11 +1,12 @@
 # Scheduling the daily pipeline
 
-Two commands. Every step inside a run is fault-isolated (a flaky API call is logged and skipped, the run continues), and every run appends a one-line summary to `logs/pipeline-runs.jsonl`.
+Three commands. Every step inside a run is fault-isolated (a flaky API call is logged and skipped, the run continues), and every run appends a one-line summary to `logs/pipeline-runs.jsonl`.
 
 | Run | Command | What it does |
 |-----|---------|--------------|
+| morning | `tipsheet morning` | last night's final scores + box scores → **settle** bets and grade projections → rosters + injury report + schedule → fetch the news feeds. Free: no odds credits, no Claude, no text |
 | daily | `tipsheet daily` | final scores + box scores + today's rosters → **settle** yesterday's bets (CLV + P&L) → injuries + news → player signals → predict each game → current game + prop odds → **choose the day's 2–3 picks** → **text them** |
-| close | `tipsheet daily-close` | re-read the rosters and injury report and text an update if they undercut a pick; re-capture game lines + the prop markets we hold → these become the **closing prices** |
+| close | `tipsheet daily-close` | re-read the rosters, the injury report and any news since the last run (Claude reads only new articles about teams still to play), and text an update if they undercut a pick; re-capture game lines + the prop markets we hold → these become the **closing prices** |
 
 ## Why local (not cloud)
 
@@ -19,14 +20,17 @@ scripts/schedule.sh status      # confirm it's loaded, and show the last runs
 scripts/schedule.sh uninstall   # stop + remove it
 ```
 
-One launchd job calls `scripts/run_due.sh` every hour at :30, and the script runs whatever is due. The times are **Pacific, whatever timezone the Mac is set to**: they follow the tip-offs, not the laptop, so travelling changes nothing.
+One launchd job calls `scripts/run_due.sh` every 15 minutes, and the script runs whatever is due. The times are **Pacific, whatever timezone the Mac is set to**: they follow the tip-offs, not the laptop, so travelling changes nothing.
 
 | Job | Time (PT) | Runs | Why then |
 |-----|--------------|------|----------|
+| morning | 8:00 | `morning` | last night is on the site by breakfast, and the news feeds are read before overnight stories scroll off them |
 | daily | 14:30 | `daily` | ~90 min before the first evening tips; **the best-bets text** |
-| close | 15:30 and 18:30 | `daily-close` | before the eastern and the western tips — the closing prices |
+| close | 15:45 and 17:45 | `daily-close` | just before the two waves of tip-offs (4–5 PM and 6–7 PM Pacific) — late news and the closing prices |
 
-**Why one run.** It is built for a laptop that is reliably awake in the afternoon and not much else. Everything the picks depend on — last night's results, the injury report, the news, the game predictions — is refreshed in the same run, minutes before the prices are taken, so nothing rests on an earlier job having happened.
+**Why these check times.** Placed against this season's schedule, 3:45 and 5:45 give 90% of games a check within 75 minutes of tip, against 58% for 3:30 and 6:30, on the same odds credits. A third check would reach 100% but costs credits the free odds plan doesn't have to spare.
+
+**Why the picks don't depend on the morning run.** Everything they need — last night's results, the injury report, the news, the game predictions — is refreshed again at 2:30, minutes before the prices are taken, so a missed morning run costs nothing but a stale site.
 
 **The picks.** Each day the bot records and texts at most `MAX_DAILY_BETS` bets (default 3), chosen across game winners and player props by edge — the probability it would size on, minus the market's. When both kinds qualify, the best of each is included. They are chosen in the afternoon because props are won on knowing who plays, which firms up through the day (with *stale* availability the projections are worse than with none), and because the price recorded is then the one on offer when the text reaches you.
 
@@ -38,7 +42,7 @@ One launchd job calls `scripts/run_due.sh` every hour at :30, and the script run
 
 ### When the Mac is asleep at run time
 
-A sleeping Mac runs nothing. launchd fires the hourly job once on the next wake, and `scripts/run_due.sh` runs each job whose time has passed since it last ran: the daily run first, then the close. Each job records when it last finished (`logs/.last-daily`, `logs/.last-close`), so none runs twice, and one that crashes is tried again the next hour. It also waits for Wi-Fi, starts Docker if the database isn't up, and holds the Mac awake until the run finishes.
+A sleeping Mac runs nothing. launchd fires the job once on the next wake, and `scripts/run_due.sh` runs each job whose time has passed since it last ran: morning, then daily, then close (a morning run still owed after 2:30 is skipped, since the daily run does all of it). Each job records when it last finished (`logs/.last-morning`, `logs/.last-daily`, `logs/.last-close`), so none runs twice; one that crashes is tried again 15 minutes later, and with no internet it waits rather than running. It also waits for Wi-Fi, starts Docker if the database isn't up, and holds the Mac awake until the run finishes.
 
 A plugged-in Mac with the lid closed still wakes briefly in the background now and then (Power Nap), and a run that lands in one of those wakes can go through. Don't count on it for a game day: that run takes minutes and sends a text, and a background wake can end first.
 

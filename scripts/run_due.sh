@@ -1,22 +1,26 @@
 #!/usr/bin/env bash
 #
 # Run whichever of the day's jobs is due. A scheduler (launchd/cron) calls this
-# every hour; it does nothing unless a job's time has passed since it last ran.
+# every 15 minutes; it does nothing unless a job's time has passed since it last ran.
 #
 # The times are Pacific whatever timezone the Mac is in, because they follow the
 # tip-offs, not the laptop: travel east and the runs still land ~90 min before the
 # first game. Built for a laptop that is often asleep, so a job missed while it slept
 # runs on the next wake (the daily run first), it waits for the network, starts
 # Docker/Postgres if they aren't up, and keeps the Mac awake until the run is done.
-# With no internet it doesn't run at all, so the job stays due for the next hour
+# With no internet it does not run at all, so the job stays due for the next try
 # (a run that can't reach nba.com would fail every step and still count as done).
 set -euo pipefail
 
 export TZ=America/Los_Angeles   # the clock both the schedule and the pipeline run on
-# Job, the tipsheet command, and its times. Order matters: the daily run comes first.
+# Job, the tipsheet command, and its times. Order matters when catching up after a
+# sleep: morning, then daily, then close. The pre-game checks sit just before the two
+# waves of tip-offs (4-5 PM and 6-7 PM Pacific): 90% of games get a check within 75
+# minutes of tip, on the same odds credits as the old 3:30 + 6:30.
 JOBS=(
-  "daily|daily|14:30"              # settle -> injuries + news -> predict -> odds -> picks -> text
-  "close|daily-close|15:30 18:30"  # rosters + injuries recheck -> the closing prices CLV uses
+  "morning|morning|08:00"           # last night's results, rosters, injuries, news feeds (free)
+  "daily|daily|14:30"               # settle -> injuries + news -> predict -> odds -> picks -> text
+  "close|daily-close|15:45 17:45"   # rosters, injuries, new news -> recheck picks -> closing prices
 )
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -53,7 +57,7 @@ prepare() {
     sleep 5
   done
   if ! online; then
-    echo "$(date '+%H:%M:%S') no internet (nba.com or ESPN unreachable); trying again next hour" >> "$LOG"
+    echo "$(date '+%H:%M:%S') no internet (nba.com or ESPN unreachable); trying again in 15 minutes" >> "$LOG"
     return 1
   fi
   prepared=1
@@ -80,12 +84,17 @@ for job in "${JOBS[@]}"; do
   marker="logs/.last-$name"
   last="$(cat "$marker" 2>/dev/null || echo 0)"
   due "$times" "$last" || continue
+  # Woken after 2:30 with the morning run still owed: the daily run does all of it.
+  if [ "$name" = morning ] && due "14:30" "$(cat logs/.last-daily 2>/dev/null || echo 0)"; then
+    date +%s > "$marker"
+    continue
+  fi
 
   LOG="logs/${name}-${TODAY}.log"
   prepare || exit 0
   echo "===== $(date '+%Y-%m-%d %H:%M:%S %Z') : ${name} (tipsheet ${cmd}) =====" >> "$LOG"
   # caffeinate holds off idle sleep until the run is done. A run that crashes
-  # leaves no marker, so the next hourly call tries it again.
+  # leaves no marker, so the next call, 15 minutes later, tries it again.
   if caffeinate -i uv run tipsheet "$cmd" >> "$LOG" 2>&1; then
     date +%s > "$marker"
   fi

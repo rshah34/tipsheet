@@ -87,11 +87,10 @@ def _slate_teams(session: Session, on: date) -> set[int]:
     return {team for row in session.execute(stmt) for team in row}
 
 
-def run_daily(session: Session, on: date | None = None) -> dict:
-    """Settle what has finished, then price tonight: results → settlement → news →
-    predictions → current game + prop prices → the day's picks → text."""
-    on = on or date.today()
-    steps = {
+def _catch_up(session: Session) -> dict:
+    """Everything since the last run that costs nothing: results, settlement, rosters,
+    the schedule, and new articles (fetched, not yet read)."""
+    return {
         # Finals and box scores for the games since the last run, tonight's schedule,
         # and the current injury report.
         "ingest": _step(session, "ingest", lambda: data_agent.run_nightly(session)),
@@ -106,6 +105,21 @@ def run_daily(session: Session, on: date | None = None) -> dict:
         "settle_props": _step(session, "settle-props", lambda: props_agent.settle_prop_bets(session)),
         "news": _step(session, "news", lambda: news_agent.sync_news(session)),
     }
+
+
+def run_morning(session: Session) -> dict:
+    """The morning catch-up, so the site has last night by breakfast: finals and box
+    scores, bets settled and projections graded, rosters, the injury report, and the
+    news feeds read before the night's stories scroll off them. No odds credits, no
+    Claude, no text; pricing waits for the afternoon, when availability is firmer."""
+    return _catch_up(session)
+
+
+def run_daily(session: Session, on: date | None = None) -> dict:
+    """Catch up, then price tonight: results → settlement → news → predictions →
+    current game + prop prices → the day's picks → text."""
+    on = on or date.today()
+    steps = _catch_up(session)
     teams = _slate_teams(session, on)
     if not teams:
         # Nothing to price: don't fetch odds or pay a model to read news nobody will use.
@@ -141,25 +155,35 @@ def _game_odds(session: Session, on: date) -> dict:
     return data_agent.sync_odds(session)
 
 
-# Each close run prices only the games tipping soon, so with runs three hours apart
-# every game is bought once, by the run nearest its tip.
-_CLOSE_WINDOW_HOURS = 3.25
+# Each pre-game run prices only the games tipping soon, so with runs two hours apart
+# (3:45, 5:45 PM Pacific) a game is bought once, by the run nearest its tip. The extra
+# quarter hour lets the last run reach the 8 PM tip-offs.
+_CLOSE_WINDOW_HOURS = 2.25
 
 
 def run_close(session: Session, on: date | None = None) -> dict:
-    """Near tip: the late-scratch check, then the snapshots that become the closing
-    prices. Cheap — the injury report is free, game lines are one request, and props
-    re-price only the markets we hold bets in."""
+    """Near tip: the latest news, the late-scratch check, then the snapshots that
+    become the closing prices. Cheap: the injury report and the feeds are free, Claude
+    reads only articles new since the last run about teams still to play, game lines
+    are one request, and props re-price only the markets we hold bets in."""
     on = on or date.today()
+    teams = _slate_teams(session, on)
 
     def recheck() -> dict:
         updates = picks.recheck(session, on)
         sent = notify.send(digest.pick_update(on, updates), kind="update") if updates else None
         return {"updates": updates, "text": sent}
 
-    return {
+    steps = {
         "rosters": _step(session, "rosters", lambda: data_agent.sync_rosters(session)),
         "injuries": _step(session, "injuries", lambda: data_agent.sync_injuries(session)),
+        "news": _step(session, "news", lambda: news_agent.sync_news(session)),
+    }
+    if teams:
+        # Read before the re-check, so a reporter's late scratch can stop a pick.
+        steps["signals"] = _step(
+            session, "news-signals", lambda: news_agent.extract_signals(session, team_ids=teams))
+    return steps | {
         "recheck": _step(session, "recheck", recheck),
         "odds": _step(session, "ingest-odds", lambda: _game_odds(session, on)),
         "prop_odds": _step(

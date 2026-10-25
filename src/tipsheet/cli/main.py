@@ -114,6 +114,13 @@ def _run_logged(name: str, fn) -> None:
 
 
 @app.command()
+def morning():
+    """The morning catch-up: last night's results and box scores, settlement, rosters,
+    injuries, and the news feeds. Free: no odds credits, no Claude, no text."""
+    _run_logged("morning", pipeline.run_morning)
+
+
+@app.command()
 def daily():
     """The afternoon run: settle finished games → injuries + news → predict →
     current odds → choose the day's picks → text them."""
@@ -122,7 +129,8 @@ def daily():
 
 @app.command()
 def daily_close():
-    """Closing snapshot: game lines + the prop markets we hold bets in (for CLV)."""
+    """Pre-game check: rosters, injuries and new news, a re-check of today's picks
+    (texting if one is undercut), then the closing prices for CLV."""
     _run_logged("close", pipeline.run_close)
 
 
