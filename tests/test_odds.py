@@ -2,8 +2,8 @@
 
 from datetime import date
 
-from nba_bot.data import odds_api
-from nba_bot.data.team_lookup import resolve_team_id
+from tipsheet.data import odds_api
+from tipsheet.data.team_lookup import resolve_team_id
 
 # Trimmed but structurally faithful sample of a The Odds API v4 event
 # (GET /v4/sports/basketball_nba/odds?markets=h2h,spreads,totals).
@@ -71,7 +71,7 @@ def test_resolve_team_by_full_name():
 
 
 def test_match_game_id_tolerates_one_day_skew():
-    from nba_bot.agents.data_agent import _match_game_id
+    from tipsheet.agents.data_agent import _match_game_id
 
     index = {(date(2026, 11, 3), 100, 200): "GAME_A"}
     # exact match

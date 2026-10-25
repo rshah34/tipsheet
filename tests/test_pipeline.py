@@ -2,7 +2,7 @@
 
 import json
 
-from nba_bot import pipeline
+from tipsheet import pipeline
 
 # A run result shaped like run_daily's return value.
 _OK = {

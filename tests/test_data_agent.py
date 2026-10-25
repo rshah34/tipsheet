@@ -6,8 +6,8 @@ import pandas as pd
 import pytest
 from nba_api.stats.static import teams as static_teams
 
-from nba_bot.agents import data_agent
-from nba_bot.agents.data_agent import _TEAM_ALIGNMENT
+from tipsheet.agents import data_agent
+from tipsheet.agents.data_agent import _TEAM_ALIGNMENT
 
 
 def test_alignment_covers_every_nba_team_by_abbreviation():

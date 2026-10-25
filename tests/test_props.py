@@ -4,8 +4,8 @@ from datetime import date, timedelta
 
 import pytest
 
-from nba_bot.features import props
-from nba_bot.features.props import (
+from tipsheet.features import props
+from tipsheet.features.props import (
     Adjustment,
     GameLine,
     budget_adjustment,
@@ -127,7 +127,7 @@ def test_project_team_raises_the_survivors_when_a_starter_is_missing():
 def test_quota_month_pacing():
     from datetime import date as d
 
-    from nba_bot.agents.props_agent import credits_to_hold_back, days_until_reset
+    from tipsheet.agents.props_agent import credits_to_hold_back, days_until_reset
 
     assert days_until_reset(d(2026, 10, 20), 1) == 11       # Oct 21..31
     assert days_until_reset(d(2026, 10, 31), 1) == 0        # refills tomorrow

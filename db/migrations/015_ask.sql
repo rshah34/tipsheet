@@ -1,7 +1,7 @@
 -- Ask: Claude answers plain-English questions by writing SQL. That SQL runs as its own
 -- login, nba_ask, which can read only the `ask` schema below: read-only by default,
 -- every statement capped at 5 seconds, and no access to the rest of the database
--- (bets, picks, odds). The login's password is set by `nba-bot init-db` from
+-- (bets, picks, odds). The login's password is set by `tipsheet init-db` from
 -- ASK_DB_PASSWORD, so it never sits in a committed file.
 CREATE SCHEMA IF NOT EXISTS ask;
 
@@ -25,7 +25,7 @@ REVOKE ALL ON ALL TABLES IN SCHEMA public FROM nba_ask;
 GRANT USAGE ON SCHEMA ask TO nba_ask;
 
 -- One row per team per game, with each side's standing going into the game. Built in
--- Python (`nba_bot.ask.data.refresh`), because the point-in-time ranks and the
+-- Python (`tipsheet.ask.data.refresh`), because the point-in-time ranks and the
 -- All-Star break are easier to get right there than in a view.
 CREATE TABLE IF NOT EXISTS ask.team_games (
     season               TEXT NOT NULL,
@@ -110,6 +110,6 @@ CREATE TABLE IF NOT EXISTS asks (
     turns     INTEGER NOT NULL DEFAULT 0,
     queries   JSONB NOT NULL DEFAULT '[]'
 );
--- 'page' for questions people ask; 'eval' for the accuracy check (`nba-bot ask-eval`),
+-- 'page' for questions people ask; 'eval' for the accuracy check (`tipsheet ask-eval`),
 -- which is kept out of the history and the daily limit.
 ALTER TABLE asks ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'page';

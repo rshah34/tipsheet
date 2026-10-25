@@ -3,7 +3,7 @@ import { Nav } from "@/components/Nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "NBA Trading Bot",
+  title: "Tipsheet",
   description:
     "Tonight's slate, player and team stats, prop projections, injury news, and the bot's picks.",
 };

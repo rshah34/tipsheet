@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS bets (
 );
 CREATE INDEX IF NOT EXISTS idx_bets_unsettled ON bets(settled_at) WHERE settled_at IS NULL;
 
--- Fitted Platt calibration parameters per model version (from `nba-bot calibrate --save`).
+-- Fitted Platt calibration parameters per model version (from `tipsheet calibrate --save`).
 -- The live pipeline applies these to raw probabilities before deciding bets. Empty =
 -- apply no calibration (honest bootstrap until enough live games resolve to fit).
 CREATE TABLE IF NOT EXISTS calibration_params (

@@ -1,6 +1,6 @@
 import type { StatKey, StatLine } from "./types";
 
-/** Prop markets, in the order they're offered. Mirrors nba_bot.features.props.MARKETS. */
+/** Prop markets, in the order they're offered. Mirrors tipsheet.features.props.MARKETS. */
 export const MARKETS: { key: string; label: string; stats: StatKey[] }[] = [
   { key: "player_points", label: "PTS", stats: ["pts"] },
   { key: "player_rebounds", label: "REB", stats: ["reb"] },

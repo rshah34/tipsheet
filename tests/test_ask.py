@@ -2,9 +2,9 @@
 
 import pytest
 
-from nba_bot.ask import sql
-from nba_bot.ask.data import build_rows, season_type
-from nba_bot.ask.evaluation import grade
+from tipsheet.ask import sql
+from tipsheet.ask.data import build_rows, season_type
+from tipsheet.ask.evaluation import grade
 
 
 @pytest.mark.parametrize("query", [

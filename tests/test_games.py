@@ -2,8 +2,8 @@
 
 from datetime import date, timedelta
 
-from nba_bot.features import games
-from nba_bot.features.props import GameLine, PropsData, TeamForm
+from tipsheet.features import games
+from tipsheet.features.props import GameLine, PropsData, TeamForm
 
 TEAM, OTHER = 1, 2
 DAY = date(2026, 1, 15)

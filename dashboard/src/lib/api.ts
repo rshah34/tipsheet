@@ -1,6 +1,6 @@
 "use client";
 
-// Thin client for the nba_bot FastAPI. Base URL is configurable so the same
+// Thin client for the tipsheet FastAPI. Base URL is configurable so the same
 // build can point at a local server or a deployed one.
 import { useEffect, useState } from "react";
 
@@ -26,7 +26,7 @@ export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   } catch (e) {
     if ((e as Error).name === "AbortError") throw e;
     // Network-level failure: server down, CORS, DNS, etc.
-    throw new ApiError(`Could not reach the API at ${API_BASE}. Is \`nba-bot serve\` running?`);
+    throw new ApiError(`Could not reach the API at ${API_BASE}. Is \`tipsheet serve\` running?`);
   }
   if (!resp.ok) {
     throw new ApiError(
@@ -47,7 +47,7 @@ export async function post<T>(path: string, body: unknown): Promise<T> {
       body: JSON.stringify(body),
     });
   } catch {
-    throw new ApiError(`Could not reach the API at ${API_BASE}. Is \`nba-bot serve\` running?`);
+    throw new ApiError(`Could not reach the API at ${API_BASE}. Is \`tipsheet serve\` running?`);
   }
   if (!resp.ok) {
     const detail = await resp.json().then((j) => j.detail).catch(() => null);

@@ -6,9 +6,9 @@ from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
-from nba_bot.api import app as api
-from nba_bot.api import views
-from nba_bot.features.props import GameLine, project
+from tipsheet.api import app as api
+from tipsheet.api import views
+from tipsheet.features.props import GameLine, project
 
 
 def _log(n, minutes=30.0, pts=20, reb=5, ast=4):
@@ -87,7 +87,7 @@ def test_ladder_is_a_falling_probability_at_every_half_point():
 def test_injury_return_date_is_read_or_left_empty():
     from datetime import date
 
-    from nba_bot.data.injuries import _return_date
+    from tipsheet.data.injuries import _return_date
 
     assert _return_date({"details": {"returnDate": "2026-10-13"}}) == date(2026, 10, 13)
     assert _return_date({"details": {}}) is None and _return_date({}) is None

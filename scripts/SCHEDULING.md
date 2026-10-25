@@ -4,8 +4,8 @@ Two commands. Every step inside a run is fault-isolated (a flaky API call is log
 
 | Run | Command | What it does |
 |-----|---------|--------------|
-| daily | `nba-bot daily` | final scores + box scores + today's rosters → **settle** yesterday's bets (CLV + P&L) → injuries + news → player signals → predict each game → current game + prop odds → **choose the day's 2–3 picks** → **text them** |
-| close | `nba-bot daily-close` | re-read the rosters and injury report and text an update if they undercut a pick; re-capture game lines + the prop markets we hold → these become the **closing prices** |
+| daily | `tipsheet daily` | final scores + box scores + today's rosters → **settle** yesterday's bets (CLV + P&L) → injuries + news → player signals → predict each game → current game + prop odds → **choose the day's 2–3 picks** → **text them** |
+| close | `tipsheet daily-close` | re-read the rosters and injury report and text an update if they undercut a pick; re-capture game lines + the prop markets we hold → these become the **closing prices** |
 
 ## Why local (not cloud)
 
@@ -30,7 +30,7 @@ One launchd job calls `scripts/run_due.sh` every hour at :30, and the script run
 
 **The picks.** Each day the bot records and texts at most `MAX_DAILY_BETS` bets (default 3), chosen across game winners and player props by edge — the probability it would size on, minus the market's. When both kinds qualify, the best of each is included. They are chosen in the afternoon because props are won on knowing who plays, which firms up through the day (with *stale* availability the projections are worse than with none), and because the price recorded is then the one on offer when the text reaches you.
 
-**Afternoon games are not bet.** A game that tips before the run (weekend and holiday matinees) is skipped: no prediction, no pick. To cover them, run `nba-bot daily` by hand in the morning; the afternoon run then keeps to the same daily cap.
+**Afternoon games are not bet.** A game that tips before the run (weekend and holiday matinees) is skipped: no prediction, no pick. To cover them, run `tipsheet daily` by hand in the morning; the afternoon run then keeps to the same daily cap.
 
 **Why the close is its own run.** CLV — did you get a better number than the close — only exists if the bet and the close are different snapshots. Merge them and CLV is always ~0, which guts the metric the whole system is scored on.
 
@@ -54,7 +54,7 @@ If the laptop is usually out of the house or shut in the afternoon, this needs a
 
 ## Getting the texts
 
-Set these in `.env`, then run `nba-bot notify-test`:
+Set these in `.env`, then run `tipsheet notify-test`:
 
 ```bash
 NOTIFY_IMESSAGE_TO=+15551234567     # your own number or Apple ID
@@ -63,11 +63,11 @@ BANKROLL=2000                       # optional: shows stakes in dollars too
 
 The bot sends one kind of text: the day's best bets (or "No bets today", so silence means it didn't run). It goes out as an iMessage through the Messages app on this Mac — no SMS provider, no cost. The first send triggers a one-time macOS prompt to let the terminal control Messages; accept it.
 
-Every digest is also written to `logs/digest-<date>.txt`, so a failed send loses nothing. `nba-bot digest` previews today's text (`--send` delivers it) and `nba-bot digest --results` shows how last night's bets finished.
+Every digest is also written to `logs/digest-<date>.txt`, so a failed send loses nothing. `tipsheet digest` previews today's text (`--send` delivers it) and `tipsheet digest --results` shows how last night's bets finished.
 
 ## Claude API cost
 
-One thing in the daily run calls Claude — reading the news — and every call is logged to `logs/api-usage.jsonl` (`nba-bot costs` totals it). Game predictions come from a statistical model and cost nothing. Ask and the research agent run only when you start them. A question costs about a cent (at most $2 a day from the dashboard) and is logged as `ask`; a research run is capped by `--budget` (default $2) and logged as `research`.
+One thing in the daily run calls Claude — reading the news — and every call is logged to `logs/api-usage.jsonl` (`tipsheet costs` totals it). Game predictions come from a statistical model and cost nothing. Ask and the research agent run only when you start them. A question costs about a cent (at most $2 a day from the dashboard) and is logged as `ask`; a research run is capped by `--budget` (default $2) and logged as `research`.
 
 | Call | When | Model | Measured cost |
 |------|------|-------|---------------|
@@ -98,23 +98,23 @@ The bot paces itself so the month never runs dry: each game is bought once, no g
 ```bash
 tail -f logs/daily-$(date +%F).log           # live console output of today's run
 tail -5 logs/pipeline-runs.jsonl             # one-line pass/fail summary per run
-nba-bot props-record                         # prop paper record: CLV, ROI, model vs. market
-nba-bot bets                                 # game-line paper record
+tipsheet props-record                         # prop paper record: CLV, ROI, model vs. market
+tipsheet bets                                 # game-line paper record
 ```
 
 ## Alternative: cron
 
 ```cron
-30 * * * * /ABSOLUTE/PATH/nba-trading-bot/scripts/run_due.sh
+30 * * * * /ABSOLUTE/PATH/tipsheet/scripts/run_due.sh
 ```
 
 On macOS, cron needs Full Disk Access granted to `/usr/sbin/cron` in System Settings → Privacy. launchd is the native, recommended path.
 
 ## Season-start checklist
 
-1. Docker running (`docker compose up -d`), then `nba-bot ingest` to confirm it works from your connection.
-2. `nba-bot notify-test` — you should get a text.
+1. Docker running (`docker compose up -d`), then `tipsheet ingest` to confirm it works from your connection.
+2. `tipsheet notify-test` — you should get a text.
 3. `scripts/schedule.sh install`.
-4. Props stay unbet for each player's first 5 games with his team (opening-week projections lean on last season's role); every line is still priced and logged. `nba-bot props-record` shows the model vs. the market on those lines from night one.
+4. Props stay unbet for each player's first 5 games with his team (opening-week projections lean on last season's role); every line is still priced and logged. `tipsheet props-record` shows the model vs. the market on those lines from night one.
 5. Game bets start once both teams have played 10 games (about three weeks in); before that the model sits out.
 6. Judge by CLV, not by a week of P&L.

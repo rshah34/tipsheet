@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from nba_bot.agents.evaluation_agent import compute_metrics
+from tipsheet.agents.evaluation_agent import compute_metrics
 
 
 def test_perfect_confident_correct_prediction():

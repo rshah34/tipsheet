@@ -11,13 +11,13 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AGENTS="$HOME/Library/LaunchAgents"
-JOBS=(com.nba-bot.runner)
+JOBS=(com.tipsheet.runner)
 ACTION="${1:-status}"
 
-# Unload and delete every nba-bot job that is installed, whatever set it came from.
+# Unload and delete every tipsheet job that is installed, whatever set it came from.
 remove_all() {
   local dest
-  for dest in "$AGENTS"/com.nba-bot.*.plist; do
+  for dest in "$AGENTS"/com.tipsheet.*.plist; do
     [ -e "$dest" ] || continue
     launchctl unload "$dest" 2>/dev/null || true
     rm -f "$dest"
@@ -45,7 +45,7 @@ case "$ACTION" in
     remove_all
     ;;
   status)
-    launchctl list | grep -E "nba-bot" || echo "no nba-bot jobs loaded"
+    launchctl list | grep -E "tipsheet" || echo "no tipsheet jobs loaded"
     tail -3 "$REPO/logs/pipeline-runs.jsonl" 2>/dev/null || true
     ;;
   *)

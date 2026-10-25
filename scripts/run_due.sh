@@ -8,10 +8,12 @@
 # first game. Built for a laptop that is often asleep, so a job missed while it slept
 # runs on the next wake (the daily run first), it waits for the network, starts
 # Docker/Postgres if they aren't up, and keeps the Mac awake until the run is done.
+# With no internet it doesn't run at all, so the job stays due for the next hour
+# (a run that can't reach nba.com would fail every step and still count as done).
 set -euo pipefail
 
 export TZ=America/Los_Angeles   # the clock both the schedule and the pipeline run on
-# Job, the nba-bot command, and its times. Order matters: the daily run comes first.
+# Job, the tipsheet command, and its times. Order matters: the daily run comes first.
 JOBS=(
   "daily|daily|14:30"              # settle -> injuries + news -> predict -> odds -> picks -> text
   "close|daily-close|15:30 18:30"  # rosters + injuries recheck -> the closing prices CLV uses
@@ -37,15 +39,24 @@ due() {
   return 1
 }
 
+online() {
+  curl -s --max-time 5 -o /dev/null https://stats.nba.com &&
+    curl -s --max-time 5 -o /dev/null https://site.api.espn.com
+}
+
 prepared=0
 prepare() {
   [ "$prepared" = 1 ] && return
-  prepared=1
-  # Wi-Fi takes a few seconds to come back after a wake.
-  for _ in $(seq 1 24); do
-    curl -s --max-time 5 -o /dev/null https://site.api.espn.com && break
+  # Wi-Fi takes a little while to come back after a wake or on a new network.
+  for _ in $(seq 1 30); do
+    online && break
     sleep 5
   done
+  if ! online; then
+    echo "$(date '+%H:%M:%S') no internet (nba.com or ESPN unreachable); trying again next hour" >> "$LOG"
+    return 1
+  fi
+  prepared=1
   # Postgres lives in Docker, which may not be running after a restart.
   db_ready() { docker compose exec -T db sh -c 'pg_isready -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; }
   if ! db_ready; then
@@ -71,11 +82,11 @@ for job in "${JOBS[@]}"; do
   due "$times" "$last" || continue
 
   LOG="logs/${name}-${TODAY}.log"
-  prepare
-  echo "===== $(date '+%Y-%m-%d %H:%M:%S %Z') : ${name} (nba-bot ${cmd}) =====" >> "$LOG"
+  prepare || exit 0
+  echo "===== $(date '+%Y-%m-%d %H:%M:%S %Z') : ${name} (tipsheet ${cmd}) =====" >> "$LOG"
   # caffeinate holds off idle sleep until the run is done. A run that crashes
   # leaves no marker, so the next hourly call tries it again.
-  if caffeinate -i uv run nba-bot "$cmd" >> "$LOG" 2>&1; then
+  if caffeinate -i uv run tipsheet "$cmd" >> "$LOG" 2>&1; then
     date +%s > "$marker"
   fi
   echo >> "$LOG"

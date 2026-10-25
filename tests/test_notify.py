@@ -2,8 +2,8 @@
 
 import subprocess
 
-from nba_bot import digest, notify
-from nba_bot.config import settings
+from tipsheet import digest, notify
+from tipsheet.config import settings
 
 
 def test_message_is_written_to_disk_even_with_no_recipient(tmp_path, monkeypatch):

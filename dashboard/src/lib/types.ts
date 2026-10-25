@@ -1,4 +1,4 @@
-// Wire types — mirror what nba_bot.api returns.
+// Wire types — mirror what tipsheet.api returns.
 
 export type StatKey = "pts" | "reb" | "ast" | "fg3m" | "stl" | "blk" | "tov";
 export type StatLine = Record<StatKey, number> & { min: number };

@@ -1,4 +1,6 @@
-# NBA Trading Bot for 2026-27 Season
+# Tipsheet
+
+NBA picks for the 2026-27 season, priced by a model, before tip-off.
 
 An agent pipeline that ingests live NBA data and news, prices **game lines and player props**
 independently of the betting market, bets (on paper) where it disagrees, texts you the day's
@@ -25,7 +27,7 @@ best bets, and scores itself against closing lines.
   distribution: minutes × per-minute rate × opponent × a team **minutes budget** and
   **stat budget** that hand playing time and production to whoever is left when
   rotation players are out, plus the schedule (back-to-backs, layoffs, likely
-  blowouts). Backtestable on two full seasons for free (`nba-bot props-backtest`).
+  blowouts). Backtestable on two full seasons for free (`tipsheet props-backtest`).
 - **Reads the news** — eight feeds, full article text. Claude turns each new article
   into structured player signals (out, minutes limit, role change, returning). Reports
   of the same thing are consolidated and ranked by how firmly and widely they are
@@ -35,7 +37,7 @@ best bets, and scores itself against closing lines.
   break against top-10 teams?") and a Claude agent answers it by writing SQL. The SQL
   runs as a separate database login that can only read a prepared `ask` schema:
   read-only, five seconds per query, no access to bets or odds. An accuracy check of
-  31 questions with answers computed straight from the data (`nba-bot ask-eval`)
+  31 questions with answers computed straight from the data (`tipsheet ask-eval`)
   keeps it honest; every query behind an answer is saved for it.
 - **Researches its own errors** — a tool-using Claude agent looks for where the prop
   projections are systematically wrong. It explores on 2024-25 through fixed tools (no
@@ -43,7 +45,7 @@ best bets, and scores itself against closing lines.
   to the whole model. Each fix it believes in gets one look at 2025-26, held back for
   this, and passes only if it holds there, clears a bar that rises with every
   confirmation ever run, and improves the whole model. Passing fixes are proposals,
-  applied by hand. Runs start from the dashboard's Research page or `nba-bot research`;
+  applied by hand. Runs start from the dashboard's Research page or `tipsheet research`;
   an explore-only mode lists candidate fixes without touching the held-back season.
 - **Makes a few picks a day** — at most three bets across game winners and props,
   ranked by edge at current prices, sized by fractional Kelly on a probability blended
@@ -104,46 +106,46 @@ docker compose up -d
 uv sync
 
 # 4. Apply the schema (every migration, in order; safe to re-run after pulling new ones)
-uv run nba-bot init-db
+uv run tipsheet init-db
 ```
 
 ## Usage
 
-All commands run via `uv run nba-bot <command>`.
+All commands run via `uv run tipsheet <command>`.
 
 ### Daily operation (in season)
 ```bash
-nba-bot daily            # settle finished games → rosters + injuries + news → predict → current odds → 2–3 picks → text them
-nba-bot daily-close      # near tip: re-check rosters + injuries (text if a pick is undercut) + the closing prices CLV is measured against
+tipsheet daily            # settle finished games → rosters + injuries + news → predict → current odds → 2–3 picks → text them
+tipsheet daily-close      # near tip: re-check rosters + injuries (text if a pick is undercut) + the closing prices CLV is measured against
 ```
 `scripts/schedule.sh install` runs these on a timer — see [scripts/SCHEDULING.md](scripts/SCHEDULING.md),
 which also covers setting up the texts.
 
 ### Player props
 ```bash
-nba-bot props-backtest   # score the projection model on a full season (free, no API calls)
-nba-bot picks            # preview today's picks across games + props (--refresh-odds, --record)
-nba-bot props-record     # paper record: CLV, ROI, and the model vs. the market on every line
-nba-bot extract-signals  # read new articles into player signals
-nba-bot digest           # print the best-bets text (--results for last night, --send to text it)
-nba-bot notify-test      # send a test text
-nba-bot costs            # what the Claude API has actually cost, by purpose and day
+tipsheet props-backtest   # score the projection model on a full season (free, no API calls)
+tipsheet picks            # preview today's picks across games + props (--refresh-odds, --record)
+tipsheet props-record     # paper record: CLV, ROI, and the model vs. the market on every line
+tipsheet extract-signals  # read new articles into player signals
+tipsheet digest           # print the best-bets text (--results for last night, --send to text it)
+tipsheet notify-test      # send a test text
+tipsheet costs            # what the Claude API has actually cost, by purpose and day
 ```
 
 ### Ask
 ```bash
-nba-bot ask "Who averaged the most assists in 2025-26?"
-nba-bot ask-eval                 # accuracy check: 30 questions, about a cent each
+tipsheet ask "Who averaged the most assists in 2025-26?"
+tipsheet ask-eval                 # accuracy check: 30 questions, about a cent each
 ```
-Needs `ASK_DB_PASSWORD` in `.env` and `nba-bot init-db`, which creates the read-only
+Needs `ASK_DB_PASSWORD` in `.env` and `tipsheet init-db`, which creates the read-only
 login. Questions from the dashboard are limited to this machine and $2 a day.
 
 ### Research agent
 ```bash
-nba-bot research --focus "bench players on the road"   # explore only: lists candidate fixes
-nba-bot research --focus "Are Celtics projections off after the All-Star break against top-10 teams?"
-nba-bot research --confirm --budget 2        # also scores fixes on the held-back season
-nba-bot research-applied 7                   # mark finding 7 as put into the model
+tipsheet research --focus "bench players on the road"   # explore only: lists candidate fixes
+tipsheet research --focus "Are Celtics projections off after the All-Star break against top-10 teams?"
+tipsheet research --confirm --budget 2        # also scores fixes on the held-back season
+tipsheet research-applied 7                   # mark finding 7 as put into the model
 ```
 The focus (optional) is a topic or a question about where the projections might miss;
 the agent says so when a question is about something else, like a team's record.
@@ -153,17 +155,17 @@ live; it only accepts requests from this machine.
 
 ### Individual steps
 ```bash
-nba-bot ingest           # teams, games (today+tomorrow), injuries, recent box/player stats
-nba-bot ingest-odds      # snapshot current odds (run a few times/day to capture line movement)
-nba-bot mark-closing     # flag the last pre-tip odds per book as the closing line
-nba-bot ingest-news      # fetch NBA news from the RSS feeds
-nba-bot predict          # win prob + edge for today's scheduled games
-nba-bot evaluate         # score resolved predictions → Brier / log-loss / CLV track record
+tipsheet ingest           # teams, games (today+tomorrow), injuries, recent box/player stats
+tipsheet ingest-odds      # snapshot current odds (run a few times/day to capture line movement)
+tipsheet mark-closing     # flag the last pre-tip odds per book as the closing line
+tipsheet ingest-news      # fetch NBA news from the RSS feeds
+tipsheet predict          # win prob + edge for today's scheduled games
+tipsheet evaluate         # score resolved predictions → Brier / log-loss / CLV track record
 ```
 
 ### Dashboard
 ```bash
-nba-bot serve                 # read-only API on http://127.0.0.1:8000
+tipsheet serve                 # read-only API on http://127.0.0.1:8000
 cd dashboard && npm run dev   # the site on http://localhost:3000
 ```
 Tonight's slate and picks, each game's injury report and projected box score, a projections page
@@ -174,6 +176,6 @@ reports, and the picks with their record. See [dashboard/README.md](dashboard/RE
 ### Backtesting
 ```bash
 # First time on a past season: its games and every box score (three nba.com requests).
-nba-bot load-season --season 2023-24
-nba-bot backtest --season 2025-26        # the game-winner model, free
+tipsheet load-season --season 2023-24
+tipsheet backtest --season 2025-26        # the game-winner model, free
 ```

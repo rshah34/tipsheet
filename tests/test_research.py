@@ -2,8 +2,8 @@
 
 from datetime import date, datetime, timedelta, timezone
 
-from nba_bot.features.props import GameInfo, GameLine, PropsData
-from nba_bot.research import table
+from tipsheet.features.props import GameInfo, GameLine, PropsData
+from tipsheet.research import table
 
 SEASON = "2025-26"
 A, B = 1610612738, 1610612743     # Boston, and Denver for the altitude flag
@@ -72,7 +72,7 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
 
-from nba_bot.research import tools  # noqa: E402
+from tipsheet.research import tools  # noqa: E402
 
 
 def _table(planted: float = 0.88, seed: int = 1) -> pd.DataFrame:
@@ -193,8 +193,8 @@ from types import SimpleNamespace  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
-from nba_bot.db.models import ResearchFinding, ResearchRun  # noqa: E402
-from nba_bot.research import agent  # noqa: E402
+from tipsheet.db.models import ResearchFinding, ResearchRun  # noqa: E402
+from tipsheet.research import agent  # noqa: E402
 
 
 class _ScriptedClaude:

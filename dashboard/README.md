@@ -9,7 +9,7 @@ projections, injury news, and the picks with their record.
 Two processes, from the repo root:
 
 ```bash
-uv run nba-bot serve          # the API, on http://127.0.0.1:8000
+uv run tipsheet serve          # the API, on http://127.0.0.1:8000
 cd dashboard && npm run dev   # the site, on http://localhost:3000
 ```
 
@@ -41,5 +41,5 @@ Press `/` anywhere to search players and teams.
 - `src/components/` — the sortable table, game-log chart, search, and shared pieces.
 - `src/lib/` — the API hook (`useApi`), wire types, formatters, the prop-market list, and the fantasy scoring tables.
 
-The API side is `src/nba_bot/api/` in the repo root: `views.py` assembles what each page
+The API side is `src/tipsheet/api/` in the repo root: `views.py` assembles what each page
 needs, `app.py` exposes it. Nothing in the dashboard writes or triggers the pipeline.

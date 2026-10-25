@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from nba_bot.data.nba_stats import pair_games
+from tipsheet.data.nba_stats import pair_games
 
 
 def _rows(*rows):

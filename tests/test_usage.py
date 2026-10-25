@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from nba_bot import usage
+from tipsheet import usage
 
 
 def _response(inp, out, cache_read=0):

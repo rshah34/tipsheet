@@ -3,8 +3,8 @@
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-from nba_bot.agents import news_agent
-from nba_bot.agents.news_agent import player_view
+from tipsheet.agents import news_agent
+from tipsheet.agents.news_agent import player_view
 
 
 _BASE = datetime(2026, 10, 20, tzinfo=timezone.utc)

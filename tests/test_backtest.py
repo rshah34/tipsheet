@@ -2,8 +2,8 @@
 
 from datetime import date, datetime
 
-from nba_bot.backtest import loader
-from nba_bot.backtest.report import calibration_table
+from tipsheet.backtest import loader
+from tipsheet.backtest.report import calibration_table
 
 
 def test_calibration_table_buckets_and_rates():

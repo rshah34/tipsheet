@@ -1,4 +1,4 @@
--- Initial schema for nba-trading-bot
+-- Initial schema for tipsheet
 -- Applied automatically on first container start via docker-entrypoint-initdb.d
 
 CREATE TABLE IF NOT EXISTS teams (

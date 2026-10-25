@@ -1,7 +1,7 @@
 """News feed tests: team tagging, HTML stripping, title resolution. Network-free."""
 
-from nba_bot.data import news_feeds
-from nba_bot.data.news_feeds import (
+from tipsheet.data import news_feeds
+from tipsheet.data.news_feeds import (
     _clean_title,
     _meta_content,
     _strip_html,

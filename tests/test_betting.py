@@ -1,6 +1,6 @@
 """Bet-decision math: odds conversion, Kelly, edge/side selection, CLV, sim."""
 
-from nba_bot.betting import (
+from tipsheet.betting import (
     american_to_decimal,
     decide_bet_decimal,
     kelly_fraction,
@@ -83,7 +83,7 @@ def test_simulate_paper_trade_empty():
 # --------------------------------------------------------------------------- #
 # Player props.
 # --------------------------------------------------------------------------- #
-from nba_bot.betting import PropQuote, decide_prop, settle_prop  # noqa: E402
+from tipsheet.betting import PropQuote, decide_prop, settle_prop  # noqa: E402
 
 
 def _quotes(*lines_and_prices):
@@ -172,7 +172,7 @@ def test_settle_prop():
 # --------------------------------------------------------------------------- #
 from types import SimpleNamespace  # noqa: E402
 
-from nba_bot import picks  # noqa: E402
+from tipsheet import picks  # noqa: E402
 
 
 def test_game_bet_is_sized_on_the_model_market_blend():
