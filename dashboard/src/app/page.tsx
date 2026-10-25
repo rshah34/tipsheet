@@ -7,6 +7,7 @@ import { PickCards } from "@/components/PickList";
 import { ReportList } from "@/components/Reports";
 import { Card, Empty, PageState, SectionTitle, TeamMark } from "@/components/ui";
 import { useApi } from "@/lib/api";
+import { modelLine } from "@/lib/spread";
 import { clock, longDate, pct, seriesLine, todayIso } from "@/lib/format";
 import type { GameCard, Report, Slate } from "@/lib/types";
 
@@ -60,7 +61,14 @@ function GameTile({ game }: { game: GameCard }) {
         </div>
         {(game.model_home_prob != null || game.market_home_prob != null) && (
           <div className="mt-3 space-y-1 border-t border-[var(--border)] pt-3">
-            <div className="text-[11px] text-muted">{game.home.abbr} win probability</div>
+            <div className="flex justify-between text-[11px] text-muted">
+              <span>{game.home.abbr} win probability</span>
+              {modelLine(game) && (
+                <span title="The model's expected margin, as a spread on its favorite">
+                  Model line <span className="tnum font-medium text-primary">{modelLine(game)}</span>
+                </span>
+              )}
+            </div>
             <ProbRow label="Model" value={game.model_home_prob} fill="bg-series-1" />
             <ProbRow label="Market" value={game.market_home_prob} fill="bg-series-rest" />
           </div>

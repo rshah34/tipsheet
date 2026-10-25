@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from tipsheet.agents import betting_agent, data_agent, news_agent, props_agent
 from tipsheet.agents.data_agent import _season_for_date
 from tipsheet.data.nba_stats import is_preseason
-from tipsheet.features.games import GAME_MODEL
+from tipsheet.features.games import GAME_MODEL, MARGIN_SD
 from tipsheet.research import agent as research_agent
 from tipsheet.research import tools as research_tools
 from tipsheet.db.models import (
@@ -409,6 +409,10 @@ def _game_card(session: Session, game: Game, teams: dict[int, dict], cache: dict
         "away": {**teams[game.away_team_id], "score": game.away_score,
                  "record": record(game.away_team_id)},
         "model_home_prob": _f(pred.predicted_home_win_prob) if pred else None,
+        # The model's expected home margin and how widely results spread around it:
+        # everything a spread is priced on (the page's spread checker).
+        "model_margin": _f(pred.predicted_spread) if pred and pred.predicted_spread is not None else None,
+        "margin_sd": MARGIN_SD,
         "market_home_prob": _market_home_prob(session, game.game_id),
         "key_factors": (pred.context_used or {}).get("key_factors") if pred else None,
     }

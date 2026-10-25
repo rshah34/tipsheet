@@ -70,6 +70,10 @@ export interface GameCard {
   home: TeamRef & { score: number | null; record: string | null };
   away: TeamRef & { score: number | null; record: string | null };
   model_home_prob: number | null;
+  /** The model's expected home margin (positive: home favored); null before it predicts. */
+  model_margin: number | null;
+  /** Points: how widely results spread around the expected margin. */
+  margin_sd: number;
   market_home_prob: number | null;
   key_factors: string[] | null;
 }

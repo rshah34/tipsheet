@@ -21,7 +21,7 @@ Needs Node 20+ (`npm install` once). The site reads the API address from
 | Page | What it's for |
 |------|---------------|
 | **Tonight** (`/`) | Any day's games with the model's and the market's win probability, that day's picks, the strongest injury news, and who is heating up. Step through dates or jump to one. |
-| **Game** (`/games/[id]`) | Both teams' projected box scores before the game; after it, what each player did next to what the model projected. Injury report, news, and what drove the model's call. |
+| **Game** (`/games/[id]`) | Both teams' projected box scores before the game; after it, what each player did next to what the model projected. Injury report, news, what drove the model's call, its line (e.g. BOS −4.3), and a spread checker: any spread on either side, priced by the model. |
 | **Projections** (`/projections`) | Every player on the slate ranked in any of the 12 stats: projection, season and last-5 averages, the matchup, and — when a sportsbook line is in — the model's chance of the over and his recent hit rate. |
 | **Fantasy** (`/fantasy`) | Projected fantasy points for the slate under ESPN or Sleeper / FanDuel / Yahoo scoring (the three score the same way), against his season and last-5 averages. |
 | **Players** (`/players`) | Every player's averages and shooting — season, last 10 or last 5 — sortable and filterable, qualified players only by default, with the recent points trend. |

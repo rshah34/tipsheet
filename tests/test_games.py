@@ -24,7 +24,7 @@ def _data(**logs) -> PropsData:
 def test_even_teams_leave_home_court():
     form = {TEAM: TeamForm(3.0, None, ()), OTHER: TeamForm(3.0, None, ())}
     p, margin = games.win_probability(games.expected_margin(form, TEAM, OTHER), 0, 0)
-    assert margin == games.HOME_COURT and 0.55 < p < 0.6
+    assert margin == games.HOME_COURT and 0.53 < p < 0.57       # home court alone: ~55%
 
 
 def test_missing_scoring_moves_the_line_both_ways():

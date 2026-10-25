@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import type { GameCard } from "@/lib/types";
 import { PickCards } from "@/components/PickList";
 import { InjuryList, ReportList } from "@/components/Reports";
 import { SortableTable, type Column } from "@/components/SortableTable";
 import { Card, doubtLabel, PageState, SectionTitle, Segmented, StatusBadge, TeamLink, TeamMark } from "@/components/ui";
 import { useApi } from "@/lib/api";
-import { clock, longDate, madeOf, num, pct, seriesLine, SHOT_TYPES, shotPct, STAT_LABELS } from "@/lib/format";
+import { clock, fairOdds, longDate, madeOf, num, pct, seriesLine, SHOT_TYPES, shotPct, STAT_LABELS } from "@/lib/format";
+import { coverChance, modelLine } from "@/lib/spread";
 import { pra } from "@/lib/markets";
 import type { GameDetail, GamePlayer, GameSide, StatLine } from "@/lib/types";
 
@@ -20,6 +22,95 @@ const BOX_LEAD: Col[] = ["min", "pts"];
 const BOX_REST: Col[] = ["reb", "ast", "stl", "blk", "tov"];
 const PROJ_COLS: Col[] = ["min", "pts", "reb", "ast", "fg3m", "pra"];
 const value = (line: StatLine | null, key: Col) => (line == null ? null : key === "pra" ? pra(line) : line[key]);
+
+const MAX_SPREAD = 30;
+
+/** A typed spread as a number, to the nearest half point, kept within ±30; null if
+ * it means nothing. "+3", "3", "-3.5" and "−3.5" all work. */
+function parseSpread(text: string): number | null {
+  const v = Number(text.replace("−", "-").replace(/[^\d.+-]/g, ""));
+  if (!text.trim() || Number.isNaN(v)) return null;
+  return Math.max(-MAX_SPREAD, Math.min(MAX_SPREAD, Math.round(v * 2) / 2));
+}
+
+const showSpread = (s: number) => (s > 0 ? `+${s}` : s < 0 ? `−${-s}` : "PK");
+
+/** Any spread on either side, priced by the model: its chance to cover (and to push,
+ * on a whole number) and the fair odds. The sportsbooks' spreads aren't fetched. */
+function SpreadChecker({ game }: { game: GameCard }) {
+  const fav: "home" | "away" = (game.model_margin ?? 0) >= 0 ? "home" : "away";
+  const [side, setSide] = useState<"home" | "away">(fav);
+  const start = -Math.round(Math.abs(game.model_margin ?? 0) * 2) / 2 || -0.5;
+  const [spread, setSpread] = useState(side === fav ? start : -start);
+  const [draft, setDraft] = useState(showSpread(spread));
+  const set = (v: number) => {
+    const clipped = Math.max(-MAX_SPREAD, Math.min(MAX_SPREAD, v));
+    setSpread(clipped);
+    setDraft(showSpread(clipped));
+  };
+  const { cover, push } = coverChance(game, side, spread);
+  const lose = 1 - cover - push;
+  const team = game[side];
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-medium text-muted">Spread checker</div>
+        <Segmented
+          label="Team"
+          value={side}
+          onChange={(v) => {
+            if (v === side) return;
+            setSide(v);
+            set(-spread);   // the same line, from the other side
+          }}
+          options={[
+            { value: "away", label: game.away.abbr },
+            { value: "home", label: game.home.abbr },
+          ]}
+        />
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <span className="text-sm font-semibold text-primary">{team.abbr}</span>
+        <button type="button" aria-label="Lower" onClick={() => set(spread - 0.5)}
+          className="h-7 w-7 rounded-md border border-[var(--border)] text-secondary hover:text-primary">−</button>
+        <input
+          type="text"
+          inputMode="decimal"
+          aria-label="Spread"
+          maxLength={6}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => set(parseSpread(draft) ?? spread)}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          onFocus={(e) => e.currentTarget.select()}
+          className="tnum w-20 rounded-md border border-[var(--border)] bg-surface px-2 py-1 text-center text-sm font-semibold text-primary"
+        />
+        <button type="button" aria-label="Raise" onClick={() => set(spread + 0.5)}
+          className="h-7 w-7 rounded-md border border-[var(--border)] text-secondary hover:text-primary">+</button>
+      </div>
+      <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
+        <div>
+          <dt className="text-xs text-muted">Covers</dt>
+          <dd className="tnum text-lg font-semibold text-primary">{pct(cover)}</dd>
+          <dd className="tnum text-xs text-muted">fair {fairOdds(cover / (1 - push))}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted">Doesn&apos;t</dt>
+          <dd className="tnum text-lg font-semibold text-primary">{pct(lose)}</dd>
+          <dd className="tnum text-xs text-muted">fair {fairOdds(lose / (1 - push))}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted">Push</dt>
+          <dd className="tnum text-lg font-semibold text-primary">{push > 0 ? pct(push) : "—"}</dd>
+        </div>
+      </dl>
+      <p className="mt-2 text-xs text-muted">
+        {`From the model alone: ${modelLine(game)}, results spread ±${num(game.margin_sd, 0)} points around it. `}
+        Sportsbook spreads aren&apos;t fetched.
+      </p>
+    </Card>
+  );
+}
 
 /** What is moving a team's projections, each note with the players it applies to. */
 function Adjustments({ players }: { players: GamePlayer[] }) {
@@ -168,6 +259,12 @@ export default function GamePage() {
               <dt className="text-xs text-muted">Market</dt>
               <dd className="text-xl font-semibold text-primary">{pct(game.market_home_prob)}</dd>
             </div>
+            {modelLine(game) && (
+              <div title="The model's expected margin, as a spread on its favorite">
+                <dt className="text-xs text-muted">Model line</dt>
+                <dd className="tnum text-xl font-semibold text-primary">{modelLine(game)}</dd>
+              </div>
+            )}
           </dl>
         )}
       </div>
@@ -179,15 +276,20 @@ export default function GamePage() {
         </section>
       )}
 
-      {game.key_factors && game.key_factors.length > 0 && (
-        <Card className="mb-8 p-4">
-          <div className="text-xs font-medium text-muted">Why the model sees it this way</div>
-          <ul className="mt-2 list-disc space-y-0.5 pl-5 text-sm text-secondary marker:text-accent">
-            {game.key_factors.map((f) => (
-              <li key={f}>{f}</li>
-            ))}
-          </ul>
-        </Card>
+      {(game.key_factors?.length || (game.model_margin != null && !final)) && (
+        <div className="mb-8 grid gap-4 lg:grid-cols-2">
+          {game.key_factors && game.key_factors.length > 0 && (
+            <Card className="p-4">
+              <div className="text-xs font-medium text-muted">Why the model sees it this way</div>
+              <ul className="mt-2 list-disc space-y-0.5 pl-5 text-sm text-secondary marker:text-accent">
+                {game.key_factors.map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
+            </Card>
+          )}
+          {game.model_margin != null && !final && <SpreadChecker game={game} />}
+        </div>
       )}
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
