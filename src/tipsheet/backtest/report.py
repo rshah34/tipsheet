@@ -1,6 +1,5 @@
-"""Aggregate a backtest run into the metrics that tell the story: calibration
-(does a predicted 70% win ~70% of the time?), accuracy, Brier/log-loss, and a
-few context splits (home back-to-backs, confident picks).
+"""How the game model has done on the games it predicted: calibration (does a
+predicted 70% win ~70% of the time?), accuracy, Brier and log-loss.
 """
 
 from __future__ import annotations
@@ -8,7 +7,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from tipsheet.db.models import Game, Prediction, PredictionEvaluation
+from tipsheet.db.models import Prediction, PredictionEvaluation
 
 
 def calibration_table(pairs: list[tuple[float, bool]], n_bins: int = 5) -> list[dict]:
@@ -44,10 +43,8 @@ def build_report(session: Session, model_version: str, n_bins: int = 5) -> dict:
             PredictionEvaluation.brier_score,
             PredictionEvaluation.log_loss,
             PredictionEvaluation.correctly_picked_winner,
-            Game.is_back_to_back_home,
         )
         .join(PredictionEvaluation, PredictionEvaluation.prediction_id == Prediction.id)
-        .join(Game, Prediction.game_id == Game.game_id)
         .where(Prediction.model_version == model_version)
     ).all()
 
@@ -58,25 +55,11 @@ def build_report(session: Session, model_version: str, n_bins: int = 5) -> dict:
     pairs = [(float(r.predicted_home_win_prob), r.actual_home_win) for r in rows]
     hits = sum(1 for r in rows if r.correctly_picked_winner)
 
-    home_won = sum(1 for r in rows if r.actual_home_win)
-    confident = [r for r in rows if abs(float(r.predicted_home_win_prob) - 0.5) >= 0.15]
-    confident_hits = sum(1 for r in confident if r.correctly_picked_winner)
-    b2b = [r for r in rows if r.is_back_to_back_home]
-    b2b_hits = sum(1 for r in b2b if r.correctly_picked_winner)
-
     return {
         "model_version": model_version,
         "n": n,
         "winner_accuracy": round(hits / n, 3),
         "mean_brier": round(sum(float(r.brier_score) for r in rows) / n, 4),
         "mean_log_loss": round(sum(float(r.log_loss) for r in rows) / n, 4),
-        "home_win_rate_actual": round(home_won / n, 3),
-        "accuracy_confident_picks": (
-            {"n": len(confident), "accuracy": round(confident_hits / len(confident), 3)}
-            if confident else None
-        ),
-        "accuracy_home_back_to_back": (
-            {"n": len(b2b), "accuracy": round(b2b_hits / len(b2b), 3)} if b2b else None
-        ),
         "calibration": calibration_table(pairs, n_bins),
     }

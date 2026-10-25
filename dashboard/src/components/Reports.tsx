@@ -14,7 +14,7 @@ const KIND_LABEL: Record<string, string> = {
   other: "Note",
 };
 
-export const kindLabel = (kind: string) => KIND_LABEL[kind] ?? kind;
+const kindLabel = (kind: string) => KIND_LABEL[kind] ?? kind;
 
 const meta = (r: Report) =>
   `${r.sources > 1 ? `${r.sources} sources` : "1 source"} · ${pct(r.confidence)} sure${r.published_at ? ` · ${ago(r.published_at)}` : ""}`;

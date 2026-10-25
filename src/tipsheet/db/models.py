@@ -183,7 +183,6 @@ class Prediction(Base):
     predicted_spread: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     market_home_win_prob: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     market_spread: Mapped[float | None] = mapped_column(Numeric, nullable=True)
-    reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
     context_used: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 

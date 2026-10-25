@@ -14,11 +14,6 @@ class CalibrationBin(BaseModel):
     actual_win_rate: float
 
 
-class SplitAccuracy(BaseModel):
-    n: int
-    accuracy: float
-
-
 class BacktestReport(BaseModel):
     """Aggregate metrics for all evaluated predictions of a model version."""
 
@@ -27,7 +22,4 @@ class BacktestReport(BaseModel):
     winner_accuracy: float | None = None
     mean_brier: float | None = None
     mean_log_loss: float | None = None
-    home_win_rate_actual: float | None = None
-    accuracy_confident_picks: SplitAccuracy | None = None
-    accuracy_home_back_to_back: SplitAccuracy | None = None
     calibration: list[CalibrationBin] = []

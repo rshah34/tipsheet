@@ -291,20 +291,12 @@ export interface CalibrationBin {
   actual_win_rate: number;
 }
 
-export interface SplitAccuracy {
-  n: number;
-  accuracy: number;
-}
-
 export interface BacktestReport {
   model_version: string;
   n: number;
   winner_accuracy: number | null;
   mean_brier: number | null;
   mean_log_loss: number | null;
-  home_win_rate_actual: number | null;
-  accuracy_confident_picks: SplitAccuracy | null;
-  accuracy_home_back_to_back: SplitAccuracy | null;
   calibration: CalibrationBin[];
 }
 

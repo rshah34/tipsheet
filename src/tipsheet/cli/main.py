@@ -8,7 +8,7 @@ from psycopg import sql
 from sqlalchemy import select
 
 from tipsheet import pipeline
-from tipsheet.agents import analysis_agent, data_agent, evaluation_agent
+from tipsheet.agents import data_agent
 from tipsheet.config import settings
 from tipsheet.db.engine import SessionLocal, engine
 from tipsheet.db.models import ResearchFinding
@@ -40,67 +40,6 @@ def init_db():
         raw.commit()
     finally:
         raw.close()
-
-
-@app.command()
-def ingest():
-    """Run the nightly Data Agent: teams, games, injuries, box scores."""
-    with SessionLocal() as session:
-        result = data_agent.run_nightly(session)
-    rprint("[green]Data Agent run complete:[/green]", result)
-
-
-@app.command()
-def ingest_odds():
-    """Capture a snapshot of current NBA odds (all books) and attach to games.
-
-    Run periodically through the day (e.g. hourly) to build line-movement history.
-    """
-    with SessionLocal() as session:
-        result = data_agent.sync_odds(session)
-    rprint("[green]Odds snapshot captured:[/green]", result)
-
-
-@app.command()
-def mark_closing():
-    """Flag the last pre-tipoff odds snapshot per (game, book) as the closing line."""
-    with SessionLocal() as session:
-        marked = data_agent.mark_closing_lines(session)
-    rprint(f"[green]Marked {marked} closing lines[/green]")
-
-
-@app.command()
-def ingest_news():
-    """Fetch NBA news from the RSS feeds and store articles not seen before."""
-    from tipsheet.agents import news_agent
-
-    with SessionLocal() as session:
-        result = news_agent.sync_news(session)
-    rprint("[green]News ingestion complete:[/green]", result)
-
-
-@app.command()
-def predict(
-    game_date: str = typer.Option("", help="Date to predict (YYYY-MM-DD). Defaults to today."),
-):
-    """Predict every scheduled game on a date with the game model → win prob + edge."""
-    from tipsheet.features.props import load_props_data
-
-    target = date.fromisoformat(game_date) if game_date else date.today()
-    with SessionLocal() as session:
-        preds = analysis_agent.run_predictions(session, target, data=load_props_data(session))
-    if not preds:
-        rprint(f"[yellow]Nothing to predict on {target} (no games, or a team under "
-               f"10 games played).[/yellow]")
-        return
-    for p in preds:
-        edge = (p.context_used or {}).get("edge_vs_market")
-        edge_str = f"edge {edge:+.1%}" if isinstance(edge, (int, float)) else "no market line"
-        rprint(
-            f"[bold]{p.game_id}[/bold]  home win [cyan]{float(p.predicted_home_win_prob):.1%}[/cyan] "
-            f"(margin {float(p.predicted_spread):+.1f})  {edge_str}"
-        )
-        rprint(f"       [dim]{p.context_used['key_factors'][0]}[/dim]")
 
 
 def _run_logged(name: str, fn) -> None:
@@ -357,33 +296,20 @@ def props_record():
 
 
 @app.command()
-def extract_signals():
-    """Read new articles into structured player signals (minutes limits, role changes)."""
-    from tipsheet.agents import news_agent
-
-    with SessionLocal() as session:
-        rprint("[green]News signals:[/green]", news_agent.extract_signals(session))
-
-
-@app.command()
 def digest(
     game_date: str = typer.Option("", help="Date (YYYY-MM-DD). Defaults to today."),
-    results: bool = typer.Option(False, "--results", help="Show last night's results instead."),
     send: bool = typer.Option(False, "--send", help="Also text it."),
 ):
-    """Print (and optionally text) the best-bets message, or last night's results."""
+    """Print (and optionally text) the day's best-bets message."""
     from tipsheet import digest as digest_mod
     from tipsheet import notify
 
     target = date.fromisoformat(game_date) if game_date else date.today()
     with SessionLocal() as session:
-        text = digest_mod.results(session) if results else digest_mod.best_bets(session, target)
-    if text is None:
-        rprint("[yellow]Nothing settled recently.[/yellow]")
-        return
+        text = digest_mod.best_bets(session, target)
     print(text)
     if send:
-        rprint("text:", notify.send(text, kind="results" if results else "digest"))
+        rprint("text:", notify.send(text, kind="digest"))
 
 
 @app.command()
@@ -414,19 +340,6 @@ def notify_test():
         rprint("[yellow]NOTIFY_IMESSAGE_TO is not set in .env — nothing sent.[/yellow]")
     else:
         rprint("text:", result)
-
-
-@app.command()
-def evaluate():
-    """Score newly-resolved predictions (Brier, log-loss, CLV) and print the track record."""
-    with SessionLocal() as session:
-        result = evaluation_agent.run_evaluation(session)
-    rprint(f"[green]Evaluated {result['evaluated']} new prediction(s).[/green]")
-    rprint(
-        f"  track record over {result['n_evaluations']} eval(s): "
-        f"Brier={result['mean_brier']} log-loss={result['mean_log_loss']} "
-        f"winner-hit={result['winner_hit_rate']} CLV={result['mean_clv']}"
-    )
 
 
 @app.command()

@@ -67,11 +67,11 @@ BANKROLL=2000                       # optional: shows stakes in dollars too
 
 The bot sends one kind of text: the day's best bets (or "No bets today", so silence means it didn't run). It goes out as an iMessage through the Messages app on this Mac — no SMS provider, no cost. The first send triggers a one-time macOS prompt to let the terminal control Messages; accept it.
 
-Every digest is also written to `logs/digest-<date>.txt`, so a failed send loses nothing. `tipsheet digest` previews today's text (`--send` delivers it) and `tipsheet digest --results` shows how last night's bets finished.
+Every digest is also written to `logs/digest-<date>.txt`, so a failed send loses nothing. `tipsheet digest` previews today's text (`--send` delivers it).
 
 ## Claude API cost
 
-One thing in the daily run calls Claude — reading the news — and every call is logged to `logs/api-usage.jsonl` (`tipsheet costs` totals it). Game predictions come from a statistical model and cost nothing. Ask and the research agent run only when you start them. A question costs about a cent (at most $2 a day from the dashboard) and is logged as `ask`; a research run is capped by `--budget` (default $2) and logged as `research`.
+One thing in the scheduled runs calls Claude — reading the news, at 2:30 and again at the pre-game checks for articles new since — and every call is logged to `logs/api-usage.jsonl` (`tipsheet costs` totals it). Game predictions come from a statistical model and cost nothing. Ask and the research agent run only when you start them. A question costs about a cent (at most $2 a day from the dashboard) and is logged as `ask`; a research run is capped by `--budget` (default $2) and logged as `research`.
 
 | Call | When | Model | Measured cost |
 |------|------|-------|---------------|
@@ -109,14 +109,14 @@ tipsheet bets                                 # game-line paper record
 ## Alternative: cron
 
 ```cron
-30 * * * * /ABSOLUTE/PATH/tipsheet/scripts/run_due.sh
+*/15 * * * * /ABSOLUTE/PATH/tipsheet/scripts/run_due.sh
 ```
 
 On macOS, cron needs Full Disk Access granted to `/usr/sbin/cron` in System Settings → Privacy. launchd is the native, recommended path.
 
 ## Season-start checklist
 
-1. Docker running (`docker compose up -d`), then `tipsheet ingest` to confirm it works from your connection.
+1. Docker running (`docker compose up -d`), then `tipsheet morning` to confirm it works from your connection.
 2. `tipsheet notify-test` — you should get a text.
 3. `scripts/schedule.sh install`.
 4. Props stay unbet for each player's first 5 games with his team (opening-week projections lean on last season's role); every line is still priced and logged. `tipsheet props-record` shows the model vs. the market on those lines from night one.

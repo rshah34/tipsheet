@@ -5,6 +5,7 @@ description = "NBA game and player-prop pricing pipeline with paper betting and 
 requires-python = ">=3.11"
 dependencies = [
     "nba-api>=1.4.1",
+    "pandas>=2.0",
     "anthropic>=0.39.0",
     "psycopg[binary]>=3.2.0",
     "sqlalchemy>=2.0.0",

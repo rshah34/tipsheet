@@ -21,10 +21,10 @@ Needs Node 20+ (`npm install` once). The site reads the API address from
 | Page | What it's for |
 |------|---------------|
 | **Tonight** (`/`) | Any day's games with the model's and the market's win probability, that day's picks, the strongest injury news, and who is heating up. Step through dates or jump to one. |
-| **Game** (`/games/[id]`) | Both teams' projected box scores before the game; after it, what each player did next to what the model projected. Injury report, news, and the model's reasoning. |
+| **Game** (`/games/[id]`) | Both teams' projected box scores before the game; after it, what each player did next to what the model projected. Injury report, news, and what drove the model's call. |
 | **Projections** (`/projections`) | Every player on the slate ranked in any of the 12 stats: projection, season and last-5 averages, the matchup, and — when a sportsbook line is in — the model's chance of the over and his recent hit rate. |
 | **Fantasy** (`/fantasy`) | Projected fantasy points for the slate under ESPN or Sleeper / FanDuel / Yahoo scoring (the three score the same way), against his season and last-5 averages. |
-| **Players** (`/players`) | Every player's averages — season, last 10 or last 5 — sortable and filterable, with minutes and points trends. |
+| **Players** (`/players`) | Every player's averages and shooting — season, last 10 or last 5 — sortable and filterable, qualified players only by default, with the recent points trend. |
 | **Player** (`/players/[id]`) | The prop explorer: pick any of 12 markets, set a line, and see how often he has cleared it (last 5/10/20/season, home/away) and what the model gives the over and under for his next game. Full game log and news. |
 | **Teams** (`/teams`) | What each team allows and produces per game, shaded to make soft matchups stand out. |
 | **Team** (`/teams/[id]`) | Roster with recent minutes and injury status, results, injury report, news. |

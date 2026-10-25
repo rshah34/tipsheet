@@ -1,5 +1,5 @@
 """Data Agent: nightly ingestion of teams, today's games, injuries, and box scores
-for completed games. Run via `tipsheet ingest` (see cli/main.py).
+for completed games. Runs inside `tipsheet morning` and `tipsheet daily` (see pipeline.py).
 """
 
 from __future__ import annotations

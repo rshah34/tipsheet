@@ -3,14 +3,14 @@ report undercuts one, and last night's results."""
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from tipsheet.agents import betting_agent, props_agent
+from tipsheet.agents import props_agent
 from tipsheet.config import settings
-from tipsheet.db.models import Bet, Game, PropBet, Team
+from tipsheet.db.models import Bet, Game, Team
 from tipsheet.features.props import GUIDE_STATS, MARKET_LABELS
 
 _BOOKS = {"draftkings": "DK", "fanduel": "FD", "betmgm": "MGM", "williamhill_us": "Caesars",
@@ -131,59 +131,3 @@ def best_bets(session: Session, game_date: date) -> str:
 def pick_update(game_date: date, updates: list[str]) -> str:
     """The late text: picks the newest injury report has undercut (`picks.recheck`)."""
     return "\n".join([f"NBA pick update, {game_date:%a %b %-d}", *updates])
-
-
-def results(session: Session, since_hours: int = 30) -> str | None:
-    """The morning-after text: what settled, and the running record. None if nothing did."""
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=since_hours)
-    props = session.execute(
-        select(PropBet).where(PropBet.settled_at >= cutoff).order_by(PropBet.pnl.desc())
-    ).scalars().all()
-    games = session.execute(select(Bet).where(Bet.settled_at >= cutoff)).scalars().all()
-    if not props and not games:
-        return None
-
-    teams = _teams(session)
-    # Dated by the games themselves: settlement can run a day or more late.
-    game_ids = {b.game_id for b in props} | {b.game_id for b in games}
-    played = session.execute(
-        select(func.max(Game.game_date)).where(Game.game_id.in_(game_ids))
-    ).scalar_one()
-    lines = [f"NBA results, {played:%a %b %-d}"]
-    marks = {"won": "W", "lost": "L", "push": "P", "void": "VOID"}
-    night = 0.0
-    for b in props:
-        night += float(b.pnl or 0)
-        actual = f"{float(b.actual_value):g}" if b.actual_value is not None else "DNP"
-        clv = f" | CLV {float(b.clv) * 100:+.1f}pts" if b.clv is not None else ""
-        lines.append(
-            f"{marks.get(b.result, '?')} {b.player_name} ({teams.get(b.team_id, '?')}) "
-            f"{b.side} {float(b.line):g} {MARKET_LABELS.get(b.market, b.market)}: {actual} "
-            f"({float(b.pnl or 0) * 100:+.2f}u{clv})"
-        )
-    matchups = {g.game_id: g for g in session.execute(
-        select(Game).where(Game.game_id.in_(game_ids))).scalars()}
-    for b in games:
-        night += float(b.pnl or 0)
-        g = matchups[b.game_id]
-        side, other = ((g.home_team_id, g.away_team_id) if b.side == "home"
-                       else (g.away_team_id, g.home_team_id))
-        clv = f" | CLV {float(b.clv) * 100:+.1f}pts" if b.clv is not None else ""
-        lines.append(
-            f"{'W' if b.won else 'L'} {teams.get(side, '?')} to win "
-            f"{'vs' if b.side == 'home' else 'at'} {teams.get(other, '?')} "
-            f"({float(b.pnl or 0) * 100:+.2f}u{clv})"
-        )
-    lines.append(f"\nNight: {night * 100:+.2f}u")
-
-    rec = props_agent.track_record(session)
-    if rec["n_bets"]:
-        clv = f", avg CLV {rec['avg_clv'] * 100:+.1f}pts" if rec["avg_clv"] is not None else ""
-        lines.append(f"Props to date: {rec['wins']}-{rec['losses']}-{rec['pushes']}, "
-                     f"{rec['units']:+.1f}u, ROI {rec['roi']:+.1%}{clv}")
-    game_rec = betting_agent.track_record(session)
-    if game_rec["n_bets"]:
-        clv = (f", avg CLV {game_rec['avg_clv'] * 100:+.1f}pts"
-               if game_rec["avg_clv"] is not None else "")
-        lines.append(f"Games to date: {game_rec['n_bets']} bets, ROI {game_rec['roi']:+.1%}{clv}")
-    return "\n".join(lines)
