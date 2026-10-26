@@ -59,6 +59,9 @@ def pick_label(candidate: dict) -> str:
             f"{MARKET_LABELS.get(candidate['market'], candidate['market'])}")
 
 
+NO_BETS = "No bets today: nothing cleared the edge threshold."
+
+
 def best_bets(session: Session, game_date: date) -> str:
     """The pre-game text: the day's picks — game winners and props together — with
     the biggest edge first."""
@@ -72,9 +75,9 @@ def best_bets(session: Session, game_date: date) -> str:
         select(Game.game_id, Game.tipoff_at).where(Game.game_date == game_date)
     ).all())
 
-    lines = [f"Tipsheet: NBA best bets, {game_date:%a %b %-d}"]
+    lines = [f"NBA best bets, {game_date:%a %b %-d}"]
     if not props and not game_bets:
-        lines.append("No bets today: nothing cleared the edge threshold.")
+        lines.append(NO_BETS)
         return "\n".join(lines)
 
     def detail(bet, why: str | None, playable: str | None) -> list[str]:

@@ -55,9 +55,10 @@ best bets, and scores itself against closing lines.
   toward the market, and settled against the result with CLV. Every book quoted sets
   the market; the bet itself is only made at the books you use (`MY_BOOKS`). Prop picks
   come with single-stat guidance (the points / rebounds / assists lines the model would bet).
-- **Texts you** — the day's best bets before tip, as an iMessage sent from the Mac it
-  runs on: each with a one-line reason and how far the price can move before it is a
-  pass. A second text follows only if a late injury change undercuts a pick.
+- **Notifies you** — the day's best bets before tip, as a push notification through
+  ntfy (a free app): each with a one-line reason and how far the price can move before
+  it is a pass. A day with a pick buzzes; "No bets today" arrives silently. A second
+  notification follows only if late news undercuts a pick.
 - **Runs live** — a free morning catch-up (results, rosters, injuries, news feeds), one
   afternoon run that does the whole loop (settle, read, predict, pick, text), and two
   pre-game checks that read the latest news, re-check the picks and snapshot closing
@@ -124,15 +125,15 @@ tipsheet daily            # settle finished games → rosters + injuries + news 
 tipsheet daily-close      # near tip: rosters + injuries + new news, re-check picks (text if one is undercut) + the closing prices CLV is measured against
 ```
 `scripts/schedule.sh install` runs these on a timer — see [scripts/SCHEDULING.md](scripts/SCHEDULING.md),
-which also covers setting up the texts.
+which also covers setting up the notifications.
 
 ### Player props
 ```bash
 tipsheet props-backtest   # score the projection model on a full season (free, no API calls)
 tipsheet picks            # preview today's picks across games + props (--refresh-odds, --record)
 tipsheet props-record     # paper record: CLV, ROI, and the model vs. the market on every line
-tipsheet digest           # print the best-bets text (--send to text it)
-tipsheet notify-test      # send a test text
+tipsheet digest           # print the best-bets message (--send to push it)
+tipsheet notify-test      # send a test notification
 tipsheet costs            # what the Claude API has actually cost, by purpose and day
 ```
 

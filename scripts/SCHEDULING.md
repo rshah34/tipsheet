@@ -10,7 +10,7 @@ Three commands. Every step inside a run is fault-isolated (a flaky API call is l
 
 ## Why local (not cloud)
 
-`nba_api` (stats.nba.com) blocks datacenter/cloud IP ranges but works from a normal residential connection, so ingestion must run from your Mac. Local scheduling also means no secrets leave the machine, and it is what lets the bot text you through the Mac's own Messages app.
+`nba_api` (stats.nba.com) blocks datacenter/cloud IP ranges but works from a normal residential connection, so ingestion must run from your Mac. Local scheduling also means no secrets leave the machine.
 
 ## Install (macOS, launchd)
 
@@ -54,18 +54,18 @@ What a late run can and can't recover:
 
 To have the runs happen on time with nobody at the keyboard, the Mac has to stay awake from mid-afternoon to the last close run: leave it **plugged in with the lid open** and turn on System Settings → Battery → Options → *Prevent automatic sleeping on power adapter when the display is off* (the display still sleeps). A closed lid sleeps the Mac regardless.
 
-If the laptop is usually out of the house or shut in the afternoon, this needs an always-on machine on a home connection instead — any spare Mac running the same setup (the texts go through Messages, so it has to be a Mac). A cloud server is not a drop-in: NBA's data endpoints refuse datacenter addresses.
+If the laptop is usually out of the house or shut in the afternoon, this needs an always-on machine on a home connection instead — any spare Mac running the same setup. A cloud server is not a drop-in: NBA's data endpoints refuse datacenter addresses.
 
-## Getting the texts
+## Getting the notifications
 
-Set these in `.env`, then run `tipsheet notify-test`:
+Install the **ntfy** app (iOS or Android, free), subscribe to your topic on the default server (ntfy.sh), set it in `.env`, then run `tipsheet notify-test`:
 
 ```bash
-NOTIFY_IMESSAGE_TO=+15551234567     # your own number or Apple ID
-BANKROLL=2000                       # optional: shows stakes in dollars too
+NTFY_TOPIC=tipsheet-<long random string>   # the topic is the only key: keep it long and private
+BANKROLL=2000                              # optional: shows stakes in dollars too
 ```
 
-The bot sends one kind of text: the day's best bets (or "No bets today", so silence means it didn't run). It goes out as an iMessage through the Messages app on this Mac — no SMS provider, no cost. The first send triggers a one-time macOS prompt to let the terminal control Messages; accept it.
+The bot sends one kind of message: the day's best bets. A day with a pick arrives as a normal notification with sound; "No bets today" arrives silently (it still shows in your notifications, so silence means the run didn't happen). A late-news update to a pick also arrives with sound. No account, no cost.
 
 Every digest is also written to `logs/digest-<date>.txt`, so a failed send loses nothing. `tipsheet digest` previews today's text (`--send` delivers it).
 
@@ -117,7 +117,7 @@ On macOS, cron needs Full Disk Access granted to `/usr/sbin/cron` in System Sett
 ## Season-start checklist
 
 1. Docker running (`docker compose up -d`), then `tipsheet morning` to confirm it works from your connection.
-2. `tipsheet notify-test` — you should get a text.
+2. `tipsheet notify-test` — you should get a notification.
 3. `scripts/schedule.sh install`.
 4. Props stay unbet for each player's first 5 games with his team (opening-week projections lean on last season's role); every line is still priced and logged. `tipsheet props-record` shows the model vs. the market on those lines from night one.
 5. Game bets start once both teams have played 10 games (about three weeks in); before that the model sits out.

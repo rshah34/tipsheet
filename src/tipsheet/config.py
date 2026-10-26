@@ -54,7 +54,8 @@ class Settings(BaseSettings):
     max_daily_bets: int = 3
 
     # Phone number or Apple ID that gets the best-bets text. Empty = log only.
-    notify_imessage_to: str = ""
+    ntfy_topic: str = ""                    # the ntfy topic the phone app subscribes to
+    ntfy_server: str = "https://ntfy.sh"
     bankroll: float = 0.0              # optional: shows stakes in dollars in the digest
 
     # Ask runs Claude's SQL as its own login, `nba_ask`, which can only read the `ask`

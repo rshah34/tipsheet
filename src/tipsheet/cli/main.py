@@ -332,14 +332,14 @@ def costs(days: int = typer.Option(30, help="How many days back to total.")):
 
 @app.command()
 def notify_test():
-    """Send a test text to the configured number."""
+    """Send a test notification to the ntfy topic."""
     from tipsheet import notify
 
-    result = notify.send("NBA bot test: notifications are working.", kind="test")
+    result = notify.send("Tipsheet test\nNotifications are working.", kind="test")
     if result == "off":
-        rprint("[yellow]NOTIFY_IMESSAGE_TO is not set in .env — nothing sent.[/yellow]")
+        rprint("[yellow]NTFY_TOPIC is not set in .env — nothing sent.[/yellow]")
     else:
-        rprint("text:", result)
+        rprint("notification:", result)
 
 
 @app.command()

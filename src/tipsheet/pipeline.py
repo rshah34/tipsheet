@@ -141,10 +141,15 @@ def run_daily(session: Session, on: date | None = None) -> dict:
         "odds": _step(session, "ingest-odds", lambda: data_agent.sync_odds(session)),
         "prop_odds": _step(session, "prop-odds", lambda: props_agent.sync_prop_odds(session, data=data)),
         "picks": _step(session, "picks", choose),
-        "notify": _step(
-            session, "notify", lambda: {"text": notify.send(digest.best_bets(session, on))}),
+        "notify": _step(session, "notify", lambda: _send_digest(session, on)),
     }
     return steps
+
+
+def _send_digest(session: Session, on: date) -> dict:
+    """The day's message; a day with no bets goes out quietly."""
+    text = digest.best_bets(session, on)
+    return {"text": notify.send(text, quiet=text.endswith(digest.NO_BETS))}
 
 
 def _game_odds(session: Session, on: date) -> dict:
