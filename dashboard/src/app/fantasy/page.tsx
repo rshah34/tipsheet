@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { SlateHeader, useSlatePlayers } from "@/components/SlateControls";
 import { SortableTable, type Column } from "@/components/SortableTable";
-import { Card, Delta, doubtLabel, Empty, PageState, Segmented, Select, StatusBadge, TeamLink } from "@/components/ui";
+import { Card, Delta, doubtLabel, Empty, NoGamesYet, PageState, Segmented, Select, StatusBadge, TeamLink } from "@/components/ui";
 import { fantasyPoints, SCORING } from "@/lib/fantasy";
 import { num, STAT_LABELS } from "@/lib/format";
 import type { SlatePlayer, StatKey } from "@/lib/types";
@@ -54,6 +54,7 @@ export default function FantasyPage() {
               <StatusBadge status={doubtLabel(r.status)} />
             </span>
           )}
+          {!r.season && !r.status && <NoGamesYet last={r.last_season} />}
         </span>
       ),
     },

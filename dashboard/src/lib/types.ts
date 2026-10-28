@@ -9,6 +9,8 @@ export type FullLine = StatLine & Record<ShotKey, number>;
 export type BoxLine = FullLine & { fg3a: number };
 /** Percentages are from the totals (all makes over all attempts); null with no attempts. */
 export type Averages = BoxLine & { gp: number; fg_pct: number | null; fg3_pct: number | null; ft_pct: number | null };
+/** A player's last season with games: sent only while he has none this season. */
+export type LastSeason = Averages & { season: string };
 
 export interface TeamRef {
   id: number;
@@ -113,15 +115,16 @@ export interface SlatePlayer {
   status: string | null;
   notes: string[];
   proj: FullLine;
-  /** Per-game averages over `season_label`, his most recent season with games. */
+  /** This season's per-game averages and last five (null before his first game). */
   season: Averages | null;
-  season_label: string | null;
   l5: Averages | null;
+  last_season: LastSeason | null;
   lines: Record<string, SlateLine>;
 }
 
 export interface SlatePlayers {
   date: string | null;
+  season: string | null;
   /** Upcoming dates with games, soonest first. */
   dates: string[];
   games: { game_id: string; tipoff_at: string | null; preseason: boolean; away: SlateSide; home: SlateSide }[];
@@ -134,9 +137,9 @@ export interface GamePlayer {
   status: string | null;
   proj: StatLine | null;
   actual: BoxLine | null;
-  /** Before the game: per-game averages from `avg_season`, his most recent season with games. */
+  /** Before the game: this season's per-game averages (null before his first game). */
   avg: (StatLine & { gp: number }) | null;
-  avg_season: string | null;
+  last_season: LastSeason | null;
   notes: string[];
 }
 
@@ -158,6 +161,7 @@ export interface GameSide {
 }
 
 export interface GameDetail extends GameCard {
+  season: string;
   away_side: GameSide;
   home_side: GameSide;
   picks: Pick[];
@@ -251,9 +255,9 @@ export interface TeamDetail extends TeamRow {
   roster: {
     id: number;
     name: string;
-    stats_season: string;
     season: Averages | null;
     l5: Averages | null;
+    last_season: LastSeason | null;
     status: string | null;
   }[];
   /** `kind` tags a result that isn't regular season: "pre", "playoffs" or "play-in". */

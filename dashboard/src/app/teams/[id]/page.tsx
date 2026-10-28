@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { InjuryList, ReportList } from "@/components/Reports";
 import { SortableTable, type Column } from "@/components/SortableTable";
-import { Card, PageState, SectionTitle, StatusBadge, TeamMark, Tile } from "@/components/ui";
+import { Card, NoGamesYet, PageState, SectionTitle, StatusBadge, TeamMark, Tile } from "@/components/ui";
 import { useApi } from "@/lib/api";
 import { num, shortDate, signed, STAT_LABELS } from "@/lib/format";
 import { pra } from "@/lib/markets";
@@ -29,10 +29,11 @@ export default function TeamPage() {
           <Link href={`/players/${r.id}`} className="font-medium text-primary hover:underline">
             {r.name}
           </Link>
-          {r.status && <StatusBadge status={r.status} />}
+          {r.status ? <StatusBadge status={r.status} /> : !r.season && <NoGamesYet last={r.last_season} />}
         </span>
       ),
     },
+    { key: "gp", header: "GP", align: "right", title: "Games played this season", sort: (r) => r.season?.gp ?? 0, render: (r) => r.season?.gp ?? "—" },
     ...STATS.map((s): Column<RosterRow> => ({
       key: s,
       header: STAT_LABELS[s],
@@ -42,7 +43,6 @@ export default function TeamPage() {
     })),
     { key: "pra", header: "PRA", align: "right", sort: (r) => (r.season ? pra(r.season) : null), render: (r) => num(r.season ? pra(r.season) : null) },
   ];
-  const carried = team.roster.some((r) => r.stats_season !== team.season);
 
   return (
     <div>
@@ -78,7 +78,7 @@ export default function TeamPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <section>
-          <SectionTitle hint={carried ? "Per game in each player's most recent season, which may have been with another team." : `Per game, ${team.season}.`}>
+          <SectionTitle hint={`Per game, ${team.season}.`}>
             Roster
           </SectionTitle>
           <Card className="p-2">

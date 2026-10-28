@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { SlateHeader, useSlatePlayers } from "@/components/SlateControls";
 import { SortableTable, type Column } from "@/components/SortableTable";
-import { Card, Delta, doubtLabel, Empty, PageState, Select, StatusBadge, TeamLink } from "@/components/ui";
+import { Card, Delta, doubtLabel, Empty, NoGamesYet, PageState, Select, StatusBadge, TeamLink } from "@/components/ui";
 import { num, pct } from "@/lib/format";
 import { MARKETS, marketValue } from "@/lib/markets";
 import type { SlateLine, SlatePlayer, SlateSide } from "@/lib/types";
@@ -55,9 +55,7 @@ export default function ProjectionsPage() {
   const label = MARKETS.find((m) => m.key === market)!.label;
   const teams = [...new Set(data.players.map((p) => p.team))].sort();
   const anyLine = rows.some((r) => r.line);
-  // The season most players' averages come from (last season until this one has games).
-  const labels = rows.map((r) => r.season_label).filter(Boolean) as string[];
-  const season = labels.sort((a, b) => labels.filter((s) => s === b).length - labels.filter((s) => s === a).length)[0] ?? "the season";
+  const season = data.season ?? "the season";
   const edge = (r: Row) => (r.line?.model_over == null ? null : r.line.model_over - r.line.market_over);
 
   const columns: Column<Row>[] = [
@@ -75,6 +73,7 @@ export default function ProjectionsPage() {
               <StatusBadge status={doubtLabel(r.status)} />
             </span>
           )}
+          {!r.season && !r.status && <NoGamesYet last={r.last_season} />}
         </span>
       ),
     },

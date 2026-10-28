@@ -160,3 +160,16 @@ def test_shooting_percentages_come_from_totals_not_an_average_of_games():
     assert avg["fga"] == 5.0 and avg["fg3a"] == 2.5
     none = views.averages(games[:1])
     assert none["fg3_pct"] is None and none["ft_pct"] is None   # no attempts, no percentage
+
+
+def test_season_lines_never_pass_off_last_season_as_this_one():
+    last = [replace(g, season="2025-26") for g in _log(30, pts=12)]
+    now = [replace(g, season="2026-27", game_date=date(2026, 10, 21) + timedelta(days=2 * i))
+           for i, g in enumerate(_log(2, pts=20))]
+    early = views.season_lines(last + now, "2026-27")
+    assert early["season"]["gp"] == 2 and early["season"]["pts"] == 20.0
+    assert early["l5"]["gp"] == 2                      # not padded with last April's games
+    assert early["last_season"] is None
+    out_all_year = views.season_lines(last, "2026-27")
+    assert out_all_year["season"] is None and out_all_year["l5"] is None
+    assert out_all_year["last_season"]["season"] == "2025-26" and out_all_year["last_season"]["pts"] == 12.0

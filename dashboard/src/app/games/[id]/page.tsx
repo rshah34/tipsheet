@@ -7,7 +7,7 @@ import type { GameCard } from "@/lib/types";
 import { PickCards } from "@/components/PickList";
 import { InjuryList, ReportList } from "@/components/Reports";
 import { SortableTable, type Column } from "@/components/SortableTable";
-import { Card, doubtLabel, PageState, SectionTitle, Segmented, StatusBadge, TeamLink, TeamMark } from "@/components/ui";
+import { Card, doubtLabel, NoGamesYet, PageState, SectionTitle, Segmented, StatusBadge, TeamLink, TeamMark } from "@/components/ui";
 import { useApi } from "@/lib/api";
 import { clock, fairOdds, longDate, madeOf, num, pct, seriesLine, SHOT_TYPES, shotPct, STAT_LABELS } from "@/lib/format";
 import { coverChance, modelLine } from "@/lib/spread";
@@ -141,7 +141,8 @@ function Adjustments({ players }: { players: GamePlayer[] }) {
 /** One team's table: what each player did, or what the model projects for him. */
 function BoxScore({ side, view }: { side: GameSide; view: View }) {
   const line = (r: GamePlayer) => (view === "actual" ? r.actual : view === "avg" ? r.avg : r.proj);
-  const players = side.players.filter((r) => line(r) != null);
+  // Season averages list everyone expected to play, games this season or not.
+  const players = side.players.filter((r) => view === "avg" || line(r) != null);
   const stat = (key: Col): Column<GamePlayer> => ({
     key,
     header: STAT_LABELS[key],
@@ -175,6 +176,7 @@ function BoxScore({ side, view }: { side: GameSide; view: View }) {
           <span title={r.status ?? undefined}>
             <StatusBadge status={r.status ? doubtLabel(r.status) : null} />
           </span>
+          {view === "avg" && !r.avg && !r.status && <NoGamesYet last={r.last_season} />}
         </span>
       ),
     },
@@ -226,9 +228,6 @@ export default function GamePage() {
   if (!game) return <PageState loading={loading} error={error} />;
   const final = game.status === "final";
   const view: View = chosen ?? (final ? "actual" : "avg");
-  // Whose averages these are: the season most of the listed players last played in.
-  const seasons = [...game.away_side.players, ...game.home_side.players].map((p) => p.avg_season).filter(Boolean);
-  const avgSeason = seasons.sort((a, b) => seasons.filter((s) => s === b).length - seasons.filter((s) => s === a).length)[0];
 
   return (
     <div>
@@ -301,7 +300,7 @@ export default function GamePage() {
           {view !== "actual" && (
             <p className="mt-0.5 pl-3 text-xs text-muted">
               {view === "avg"
-                ? `Per game${avgSeason ? ` in ${avgSeason}` : ""}, for everyone expected to play. PRA is points + rebounds + assists.`
+                ? `Per game in ${game.season}, for everyone expected to play. PRA is points + rebounds + assists.`
                 : "The model's expected line for this game. PRA is points + rebounds + assists."}
             </p>
           )}

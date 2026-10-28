@@ -128,6 +128,19 @@ const STATUS_TONE: Record<string, keyof typeof TONES> = {
   note: "neutral",
 };
 
+/** For a player with no games this season: says so, with last season's line on hover,
+ * so last season's numbers are never shown as this season's. */
+export function NoGamesYet({ last }: { last: { season: string; gp: number; min: number; pts: number; reb: number; ast: number } | null }) {
+  const title = last
+    ? `${last.season}: ${last.pts.toFixed(1)} pts, ${last.reb.toFixed(1)} reb, ${last.ast.toFixed(1)} ast in ${last.min.toFixed(1)} min (${last.gp} games)`
+    : "No games on record";
+  return (
+    <span title={title} className="whitespace-nowrap text-[11px] text-muted">
+      no games yet
+    </span>
+  );
+}
+
 /** Availability or role status: a tinted pill with a dot and the word, never colour alone. */
 export function StatusBadge({ status }: { status: string | null | undefined }) {
   if (!status) return null;

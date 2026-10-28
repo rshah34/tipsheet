@@ -99,6 +99,20 @@ def averages(lines: list[GameLine], last: int | None = None) -> dict | None:
     return out
 
 
+def season_lines(log: list[GameLine], season: str) -> dict:
+    """A player's per-game numbers for one season, never another: averages and his last
+    five, both this season only. With no games in it yet, his last season with games
+    rides along separately (`last_season`), so a page can mention it without passing
+    it off as this season's."""
+    games = [g for g in log if g.season == season]
+    earlier = [g for g in log if g.season < season]
+    last = None
+    if not games and earlier:
+        prev = [g for g in earlier if g.season == earlier[-1].season]
+        last = {"season": earlier[-1].season, **averages(prev)}
+    return {"season": averages(games), "l5": averages(games, 5), "last_season": last}
+
+
 def _seasons(data: PropsData) -> list[str]:
     return sorted({g.season for games in data.team_games.values() for g in games}, reverse=True)
 
@@ -465,7 +479,7 @@ def slate_players(session: Session, on: date | None) -> dict:
     if on not in dates:
         on = dates[0] if dates else None
     out = {"date": on and on.isoformat(), "dates": [d.isoformat() for d in dates],
-           "games": [], "players": []}
+           "season": _season_for_date(on) if on else None, "games": [], "players": []}
     if on is None:
         return out
 
@@ -512,9 +526,7 @@ def slate_players(session: Session, on: date | None) -> dict:
                     "proj": {"min": proj.minutes,
                              **{s: round(proj.means[s], 2) for s in STATS},
                              **{s: round(v, 2) for s, v in shots.items()}},
-                    "season": averages([g for g in log if g.season == log[-1].season]),
-                    "season_label": log[-1].season if log else None,
-                    "l5": averages(log, 5), "lines": lines,
+                    **season_lines(log, out["season"]), "lines": lines,
                 })
         out["games"].append({"game_id": game.game_id, "tipoff_at": _iso(game.tipoff_at),
                              "preseason": is_preseason(game.game_id),
@@ -523,14 +535,15 @@ def slate_players(session: Session, on: date | None) -> dict:
 
 
 def _player_row(pid: int, name: str, proj: Projection | None, status: str | None,
-                actual: PlayerGameStats | None, log: list[GameLine] | None = None) -> dict:
+                actual: PlayerGameStats | None, log: list[GameLine] | None = None,
+                season: str | None = None) -> dict:
     """One player in a game: the model's line, what he did, and — before the game —
-    his per-game averages from his most recent season with games."""
+    his per-game averages this season."""
     row = {"id": pid, "name": name, "status": status, "proj": None, "actual": None,
-           "avg": None, "avg_season": None, "notes": []}
-    if log:
-        season = log[-1].season
-        row["avg"], row["avg_season"] = averages([g for g in log if g.season == season]), season
+           "avg": None, "last_season": None, "notes": []}
+    if log is not None and season:
+        lines = season_lines(log, season)
+        row["avg"], row["last_season"] = lines["season"], lines["last_season"]
     if proj is not None:
         row["proj"] = {"min": proj.minutes, **{s: round(proj.means[s], 1) for s in STATS}}
         row["notes"] = proj.notes
@@ -580,7 +593,7 @@ def game_detail(session: Session, game_id: str) -> dict | None:
                                          team_id == game.home_team_id,
                                          preseason=is_preseason(game.game_id))
             rows = [_player_row(pid, data.names[pid], p, view.blocked.get(pid), None,
-                                data.log_before(pid, game.game_date))
+                                data.log_before(pid, game.game_date), game.season)
                     for pid, p in view.projections.items() if p.minutes >= 5]
             rows.sort(key=lambda r: r["proj"]["min"], reverse=True)
             out = _injury_rows(session, team_id, now, game.game_date)
@@ -588,7 +601,7 @@ def game_detail(session: Session, game_id: str) -> dict | None:
         sides.append({"team": teams[team_id], "players": rows, "injuries": out, "reports": reports})
 
     card = _game_card(session, game, teams, {})
-    card.update({"away_side": sides[0], "home_side": sides[1],
+    card.update({"season": game.season, "away_side": sides[0], "home_side": sides[1],
                  "picks": _pick_rows(session, Game.game_id == game_id, teams)})
     return card
 
@@ -662,11 +675,8 @@ def team_detail(session: Session, team_id: int) -> dict | None:
         if team != team_id or (data.last_seen[pid] < newest - timedelta(days=_ROSTER_DAYS)
                                and pid not in hurt):
             continue
-        log = data.logs.get(pid, [])
-        recent_season = log[-1].season if log else season
-        games = [g for g in log if g.season == recent_season]
-        roster.append({"id": pid, "name": data.names[pid], "stats_season": recent_season,
-                       "season": averages(games), "l5": averages(games, 5),
+        roster.append({"id": pid, "name": data.names[pid],
+                       **season_lines(data.logs.get(pid, []), season),
                        "status": listed.get(normalize_name(data.names[pid]))})
     roster.sort(key=lambda r: (r["season"] or {}).get("min", 0), reverse=True)
 
