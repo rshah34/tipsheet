@@ -238,3 +238,17 @@ def test_stat_budget_hands_missing_production_to_the_bench_first():
 def test_a_thin_log_widens_the_spread():
     thin, deep = project(_log(8, pts=20)), project(_log(40, pts=20))
     assert thin.phis["player_points"] > deep.phis["player_points"]
+
+
+def test_trust_is_learned_from_the_live_record():
+    from tipsheet.agents.props_agent import trust_weight
+    import random
+    rng = random.Random(1)
+    # The market knows the truth; a sharp model agrees with it, a noisy one doesn't.
+    truth = [rng.random() for _ in range(2000)]
+    went_over = [rng.random() < p for p in truth]
+    sharp = [(p, p, o) for p, o in zip(truth, went_over)]
+    noisy = [(min(max(p + rng.uniform(-0.3, 0.3), 0.01), 0.99), p, o) for p, o in zip(truth, went_over)]
+    assert trust_weight(noisy)["model_weight"] <= 0.1      # a model that trails is barely trusted
+    assert trust_weight(sharp)["learned"]
+    assert trust_weight(noisy[:100]) == {"model_weight": 0.5, "lines": 100, "learned": False}

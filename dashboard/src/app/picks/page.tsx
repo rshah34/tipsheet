@@ -109,9 +109,16 @@ export default function PicksPage() {
             <p className="tnum mb-6 text-sm text-secondary">
               On all {props.lines.n} prop lines priced, bet or not — Brier score, lower is better: model{" "}
               <span className="font-medium text-primary">{num(props.lines.brier_model, 4)}</span>, market{" "}
-              <span className="font-medium text-primary">{num(props.lines.brier_market, 4)}</span>, half-and-half blend{" "}
-              <span className="font-medium text-primary">{num(props.lines.brier_blend, 4)}</span>. The blend beating
-              the market is the sign the model adds information.
+              <span className="font-medium text-primary">{num(props.lines.brier_market, 4)}</span>.
+              {props.trust && (
+                <>
+                  {" "}Bets are sized on{" "}
+                  <span className="font-medium text-primary">{pct(props.trust.model_weight)}</span> model,
+                  {props.trust.learned
+                    ? ` the share that would have scored best on those lines; it rises as the model earns it.`
+                    : ` the starting share until 300 lines have settled.`}
+                </>
+              )}
             </p>
           )}
           <SectionTitle>History{settled ? "" : " (none settled yet)"}</SectionTitle>

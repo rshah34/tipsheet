@@ -291,8 +291,14 @@ def props_record():
     if "lines" in rec:
         ln = rec["lines"]
         rprint(f"[bold]Every priced line[/bold] (n={ln['n']}): Brier model {ln['brier_model']} | "
-               f"market {ln['brier_market']} | 50/50 blend {ln['brier_blend']}")
-        rprint("[dim]The blend beating the market is the evidence the model adds information.[/dim]")
+               f"market {ln['brier_market']}")
+    t = rec.get("trust")
+    if t and t["learned"]:
+        rprint(f"[bold]Trust in the model[/bold]: {t['model_weight']:.0%} of each bet's probability "
+               f"(learned on {t['lines']} lines; blend Brier {t['brier']} vs market {t['brier_market']})")
+    elif t:
+        rprint(f"[bold]Trust in the model[/bold]: {t['model_weight']:.0%} (the starting weight; "
+               f"learned once {t['lines']} of 300 lines have settled)")
 
 
 @app.command()

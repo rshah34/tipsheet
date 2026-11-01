@@ -218,3 +218,18 @@ def test_game_bet_skips_an_edge_too_large_to_trust():
     d = decide_bet_decimal(0.54, american_to_decimal(457), american_to_decimal(-650),
                            market_weight=0.75, min_edge=0.025, max_edge=0.0625)
     assert d.side == "none" and "too large" in d.reason
+
+
+def test_trusting_the_model_less_never_lets_a_wilder_disagreement_through():
+    from tipsheet.betting import PropQuote, decide_prop
+    quotes = [PropQuote(sportsbook=b, line=30.5, over_decimal=1.91, under_decimal=1.91)
+              for b in ("draftkings", "fanduel", "betmgm")]
+    def wild(line):        # the model 35 points above a 50% market
+        return 0.85, 0.15, 0.0
+
+    def fair(line):        # 12 points above: a real disagreement
+        return 0.62, 0.38, 0.0
+
+    assert decide_prop(quotes, wild, market_weight=0.9) is None   # raw gap over the cap
+    assert decide_prop(quotes, fair, market_weight=0.5).side == "over"
+    assert decide_prop(quotes, fair, market_weight=0.9) is None   # 10% trust: edge 1.2 pts

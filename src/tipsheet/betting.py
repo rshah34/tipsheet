@@ -194,6 +194,8 @@ class PropDecision:
 
 
 # How far a prop bet's probability leans on the market rather than the model.
+# How much of a prop's probability comes from the market until the model has a live
+# record to judge it by (`props_agent.model_trust` takes over after that).
 PROP_MARKET_WEIGHT = 0.5
 # A book whose line is further than this from the one being priced isn't quoting the
 # same bet, and is left out of the consensus.
@@ -207,7 +209,7 @@ def decide_prop(
     books: frozenset[str] | None = None,
     market_weight: float = PROP_MARKET_WEIGHT,
     min_edge: float = 0.03,
-    max_edge: float = 0.10,
+    max_gap: float = 0.20,
     min_books: int = 2,
     kelly_multiplier: float = 0.25,
     max_stake: float = 0.02,
@@ -226,9 +228,10 @@ def decide_prop(
       across at least `min_books` books. A book hanging a nearby line still counts:
       its probability is carried to the line being priced with the model's own
       distribution, so a book that is a point off the rest shows up as the edge it is.
-    * **Too-good-to-be-true cap.** A blended edge above `max_edge` (a raw model
-      gap twice that) almost always means the model is missing something — an
-      injury, a role change — not that several books are that wrong at once.
+    * **Too-good-to-be-true cap.** The model disagreeing with the market by more than
+      `max_gap` almost always means it is missing something — an injury, a role
+      change — not that several books are that wrong at once. Judged on the raw
+      model, so trusting the model less never lets a wilder disagreement through.
 
     Stake is fractional Kelly on the blended probability, push-aware, capped.
     """
@@ -266,7 +269,7 @@ def decide_prop(
         ):
             bet_prob = market_weight * market + (1 - market_weight) * model
             edge = bet_prob - market
-            if edge < min_edge or edge > max_edge:
+            if edge < min_edge or model - market > max_gap:
                 continue
             quote = max((q for q in mine if q.line == line),
                         key=lambda q: q.over_decimal if side == "over" else q.under_decimal)

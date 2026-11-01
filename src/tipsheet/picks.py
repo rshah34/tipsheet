@@ -15,7 +15,6 @@ from datetime import date, datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from tipsheet import betting
 from tipsheet.agents import betting_agent, data_agent, props_agent
 from tipsheet.config import settings
 from tipsheet.db.models import Bet, Game, PropBet, Team
@@ -135,6 +134,7 @@ def recheck(
     as_of = as_of or datetime.now(timezone.utc)
     data = data or load_props_data(session)
     slate = props_agent.slate_for(session, data, game_date, as_of)
+    trust = props_agent.model_trust(session)["model_weight"]
     abbr = {t.team_id: t.abbreviation for t in session.execute(select(Team)).scalars()}
     live = (Game.game_date == game_date, Game.status == "scheduled")
     updates: list[str] = []
@@ -174,7 +174,7 @@ def recheck(
             if push >= 1:
                 continue
             model = (over if bet.side == "over" else under) / (1 - push)
-            w = betting.PROP_MARKET_WEIGHT
+            w = 1 - trust
             if w * float(bet.market_prob) + (1 - w) * model >= 1 / float(bet.decimal_odds):
                 continue   # still worth the price it was taken at
             moved = changes(bet.team_id, bet.decided_at)

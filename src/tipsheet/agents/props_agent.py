@@ -363,6 +363,47 @@ def consensus(quotes: list[betting.PropQuote]) -> tuple[float, int, float] | Non
 # --------------------------------------------------------------------------- #
 # Betting.
 # --------------------------------------------------------------------------- #
+# Trust in the model is learned from its live record: the share of the model in the
+# probability bets are sized on is whatever share would have scored best on every line
+# it has priced and seen settled, once there are enough of them.
+_TRUST_MIN_LINES = 300
+_TRUST_GRID = [i / 20 for i in range(11)]   # 0, 0.05, ... 0.5: never more model than market
+
+
+def model_trust(session: Session) -> dict:
+    """How much to trust the model against the market, learned from live lines.
+
+    Every line the model priced (bet or not) is graded once the game is played. The
+    weight is the model share of a model/market blend that would have had the best
+    Brier score on all of them: near zero while the model trails the market, so its
+    disagreements stop turning into bets, and more as it earns it. Until there are
+    `_TRUST_MIN_LINES`, the starting weight stands.
+    """
+    rows = session.execute(
+        select(PropProjection.model_over, PropProjection.market_over,
+               PropProjection.actual_value, PropProjection.line)
+        .where(PropProjection.actual_value.is_not(None), PropProjection.model_version == MODEL_VERSION)
+        .distinct(PropProjection.game_id, PropProjection.player_id, PropProjection.market)
+        .order_by(PropProjection.game_id, PropProjection.player_id, PropProjection.market,
+                  PropProjection.as_of.desc())
+    ).all()
+    scored = [(float(m), float(k), float(a) > float(ln)) for m, k, a, ln in rows if float(a) != float(ln)]
+    return trust_weight(scored)
+
+
+def trust_weight(scored: list[tuple[float, float, bool]]) -> dict:
+    """The model share that would have scored best on (model P(over), market P(over),
+    went over) lines; the starting share until there are enough of them."""
+    def brier(w: float) -> float:
+        return sum((w * m + (1 - w) * k - hit) ** 2 for m, k, hit in scored) / len(scored)
+
+    if len(scored) < _TRUST_MIN_LINES:
+        return {"model_weight": 1 - betting.PROP_MARKET_WEIGHT, "lines": len(scored), "learned": False}
+    best = min(_TRUST_GRID, key=brier)
+    return {"model_weight": best, "lines": len(scored), "learned": True,
+            "brier": round(brier(best), 4), "brier_market": round(brier(0.0), 4)}
+
+
 def price_props(
     session: Session,
     game_date: date,
@@ -391,6 +432,7 @@ def price_props(
     slate = slate_for(session, data, game_date, as_of)
     names = {t.team_id: t.abbreviation for t in session.execute(select(Team)).scalars()}
     decide_kwargs.setdefault("books", my_books())
+    decide_kwargs.setdefault("market_weight", 1 - model_trust(session)["model_weight"])
 
     games = session.execute(
         select(Game).where(Game.game_date == game_date, Game.status == "scheduled")
@@ -666,8 +708,8 @@ def track_record(session: Session) -> dict:
             "n": n,
             "brier_model": round(sum((m - o) ** 2 for m, _, o in scored) / n, 4),
             "brier_market": round(sum((k - o) ** 2 for _, k, o in scored) / n, 4),
-            "brier_blend": round(sum(((m + k) / 2 - o) ** 2 for m, k, o in scored) / n, 4),
         }
+    record["trust"] = model_trust(session)
     return record
 
 
