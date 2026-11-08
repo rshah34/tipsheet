@@ -288,17 +288,12 @@ def props_record():
         g = rec["guide"]
         rprint(f"[bold]Single-stat guidance[/bold]: {g['hits']} of {g['calls']} calls came in "
                f"({g['hits'] / g['calls']:.0%}; the model's bar is {g['target']:.0%})")
-    if "lines" in rec:
-        ln = rec["lines"]
-        rprint(f"[bold]Every priced line[/bold] (n={ln['n']}): Brier model {ln['brier_model']} | "
-               f"market {ln['brier_market']}")
-    t = rec.get("trust")
-    if t and t["learned"]:
-        rprint(f"[bold]Trust in the model[/bold]: {t['model_weight']:.0%} of each bet's probability "
-               f"(learned on {t['lines']} lines; blend Brier {t['brier']} vs market {t['brier_market']})")
-    elif t:
-        rprint(f"[bold]Trust in the model[/bold]: {t['model_weight']:.0%} (the starting weight; "
-               f"learned once {t['lines']} of 300 lines have settled)")
+    for m in rec.get("markets", []):
+        t = m["trust"]
+        how = ("learned on its own lines" if t["learned"] else
+               "borrowed from all markets until 300 of its own" if t.get("borrowed") else "the starting weight")
+        rprint(f"[bold]{m['label']}[/bold] (n={m['n']} priced lines): Brier model {m['brier_model']} | "
+               f"market {m['brier_market']} | trust in the model {t['model_weight']:.0%} ({how})")
 
 
 @app.command()

@@ -35,6 +35,7 @@ from tipsheet.db.models import (
 from tipsheet.features.props import (
     BUDGET_UP_NOTE,
     GUIDE_PROB,
+    MARKET_LABELS,
     MARKETS,
     ROTATION_MIN,
     Adjustment,
@@ -370,25 +371,40 @@ _TRUST_MIN_LINES = 300
 _TRUST_GRID = [i / 20 for i in range(11)]   # 0, 0.05, ... 0.5: never more model than market
 
 
-def model_trust(session: Session) -> dict:
-    """How much to trust the model against the market, learned from live lines.
-
-    Every line the model priced (bet or not) is graded once the game is played. The
-    weight is the model share of a model/market blend that would have had the best
-    Brier score on all of them: near zero while the model trails the market, so its
-    disagreements stop turning into bets, and more as it earns it. Until there are
-    `_TRUST_MIN_LINES`, the starting weight stands.
-    """
-    rows = session.execute(
+def graded_lines(session: Session, market: str | None = None) -> list[tuple[float, float, bool]]:
+    """(model P(over), market P(over), went over) for every settled line the current
+    model priced, in one market or all of them. A line landed exactly is left out."""
+    query = (
         select(PropProjection.model_over, PropProjection.market_over,
                PropProjection.actual_value, PropProjection.line)
         .where(PropProjection.actual_value.is_not(None), PropProjection.model_version == MODEL_VERSION)
         .distinct(PropProjection.game_id, PropProjection.player_id, PropProjection.market)
         .order_by(PropProjection.game_id, PropProjection.player_id, PropProjection.market,
                   PropProjection.as_of.desc())
-    ).all()
-    scored = [(float(m), float(k), float(a) > float(ln)) for m, k, a, ln in rows if float(a) != float(ln)]
-    return trust_weight(scored)
+    )
+    if market is not None:
+        query = query.where(PropProjection.market == market)
+    return [(float(m), float(k), float(a) > float(ln))
+            for m, k, a, ln in session.execute(query).all() if float(a) != float(ln)]
+
+
+def model_trust(session: Session, market: str | None = None) -> dict:
+    """How much to trust the model against the market, learned from live lines.
+
+    Every line the model priced (bet or not) is graded once the game is played. The
+    weight is the model share of a model/market blend that would have had the best
+    Brier score on all of them: near zero while the model trails the market, so its
+    disagreements stop turning into bets, and more as it earns it.
+
+    Each market earns its own trust, since books price some markets more sharply than
+    others. Until a market has `_TRUST_MIN_LINES` of its own, it borrows the trust
+    learned on every market together; until those are enough, the starting weight stands.
+    """
+    trust = trust_weight(graded_lines(session, market))
+    if market is not None and not trust["learned"]:
+        pooled = model_trust(session)
+        trust = {**trust, "model_weight": pooled["model_weight"], "borrowed": True}
+    return trust
 
 
 def trust_weight(scored: list[tuple[float, float, bool]]) -> dict:
@@ -432,7 +448,7 @@ def price_props(
     slate = slate_for(session, data, game_date, as_of)
     names = {t.team_id: t.abbreviation for t in session.execute(select(Team)).scalars()}
     decide_kwargs.setdefault("books", my_books())
-    decide_kwargs.setdefault("market_weight", 1 - model_trust(session)["model_weight"])
+    trust: dict[str, float] = {}
 
     games = session.execute(
         select(Game).where(Game.game_date == game_date, Game.status == "scheduled")
@@ -482,14 +498,17 @@ def price_props(
                              for g in data.logs.get(pid, []))
             if pid in view.blocked or settled_in < min_team_games:
                 continue
-            d = betting.decide_prop(qs, lambda ln, p=proj, m=market: p.probs(m, ln), **decide_kwargs)
+            if market not in trust:
+                trust[market] = model_trust(session, market)["model_weight"]
+            kwargs = {"market_weight": 1 - trust[market], **decide_kwargs}
+            d = betting.decide_prop(qs, lambda ln, p=proj, m=market: p.probs(m, ln), **kwargs)
             if d is None:
                 continue
             notes = list(proj.notes)
             if view.alt is not None:
                 other = view.alt.get(pid)
                 d2 = other and betting.decide_prop(
-                    qs, lambda ln, p=other, m=market: p.probs(m, ln), **decide_kwargs
+                    qs, lambda ln, p=other, m=market: p.probs(m, ln), **kwargs
                 )
                 if not d2 or (d2.side, d2.line) != (d.side, d.line):
                     continue  # the edge depends on a teammate's coin-flip status
@@ -697,19 +716,25 @@ def track_record(session: Session) -> dict:
     if calls:
         record["guide"] = {"calls": calls, "hits": hits, "target": GUIDE_PROB}
 
-    lines = session.execute(
-        select(PropProjection).where(PropProjection.actual_value.is_not(None))
+    # The model against the market on every line it priced, market by market: each
+    # earns its own trust.
+    priced = session.execute(
+        select(PropProjection.market).where(PropProjection.actual_value.is_not(None),
+                                            PropProjection.model_version == MODEL_VERSION).distinct()
     ).scalars().all()
-    scored = [(float(p.model_over), float(p.market_over), float(p.actual_value) > float(p.line))
-              for p in lines if float(p.actual_value) != float(p.line)]
-    if scored:
+    record["markets"] = []
+    for market in priced:
+        scored = graded_lines(session, market)
+        if not scored:
+            continue
         n = len(scored)
-        record["lines"] = {
-            "n": n,
+        record["markets"].append({
+            "market": market, "label": MARKET_LABELS.get(market, market), "n": n,
             "brier_model": round(sum((m - o) ** 2 for m, _, o in scored) / n, 4),
             "brier_market": round(sum((k - o) ** 2 for _, k, o in scored) / n, 4),
-        }
-    record["trust"] = model_trust(session)
+            "trust": model_trust(session, market),
+        })
+    record["markets"].sort(key=lambda m: -m["n"])
     return record
 
 

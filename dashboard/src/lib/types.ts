@@ -280,9 +280,16 @@ export interface PicksPayload {
     avg_clv: number | null;
     clv_positive_rate: number | null;
     guide?: { calls: number; hits: number; target: number };
-    lines?: { n: number; brier_model: number; brier_market: number };
-    /** The model's share of each bet's probability, learned from its live record. */
-    trust?: { model_weight: number; lines: number; learned: boolean; brier?: number; brier_market?: number };
+    /** The model against the market on every priced line, per market, and the model's
+     *  share of each bet's probability there, learned from that record. */
+    markets: {
+      market: string;
+      label: string;
+      n: number;
+      brier_model: number;
+      brier_market: number;
+      trust: { model_weight: number; lines: number; learned: boolean; borrowed?: boolean };
+    }[];
   };
   games: {
     n_bets: number;

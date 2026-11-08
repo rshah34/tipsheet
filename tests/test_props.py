@@ -252,3 +252,17 @@ def test_trust_is_learned_from_the_live_record():
     assert trust_weight(noisy)["model_weight"] <= 0.1      # a model that trails is barely trusted
     assert trust_weight(sharp)["learned"]
     assert trust_weight(noisy[:100]) == {"model_weight": 0.5, "lines": 100, "learned": False}
+
+
+def test_a_new_market_borrows_trust_until_it_has_its_own_record(monkeypatch):
+    from tipsheet.agents import props_agent
+    import random
+    rng = random.Random(2)
+    truth = [rng.random() for _ in range(1000)]
+    noisy = [(min(max(p + rng.uniform(-0.3, 0.3), 0.01), 0.99), p, rng.random() < p) for p in truth]
+    lines = {None: noisy, "player_points_rebounds_assists": noisy, "player_rebounds": noisy[:50]}
+    monkeypatch.setattr(props_agent, "graded_lines", lambda session, market=None: lines[market])
+    pooled = props_agent.model_trust(None)["model_weight"]
+    new = props_agent.model_trust(None, "player_rebounds")
+    assert pooled <= 0.1
+    assert new["model_weight"] == pooled and new["borrowed"]   # not the 50% starting share

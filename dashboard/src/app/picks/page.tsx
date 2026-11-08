@@ -105,21 +105,19 @@ export default function PicksPage() {
               hint={props.guide ? `${props.guide.hits} of ${props.guide.calls} calls; the bar is ${pct(props.guide.target)}` : "graded after each game"}
             />
           </div>
-          {props.lines && (
-            <p className="tnum mb-6 text-sm text-secondary">
-              On all {props.lines.n} prop lines priced, bet or not — Brier score, lower is better: model{" "}
-              <span className="font-medium text-primary">{num(props.lines.brier_model, 4)}</span>, market{" "}
-              <span className="font-medium text-primary">{num(props.lines.brier_market, 4)}</span>.
-              {props.trust && (
-                <>
-                  {" "}Bets are sized on{" "}
-                  <span className="font-medium text-primary">{pct(props.trust.model_weight)}</span> model,
-                  {props.trust.learned
-                    ? ` the share that would have scored best on those lines; it rises as the model earns it.`
-                    : ` the starting share until 300 lines have settled.`}
-                </>
-              )}
-            </p>
+          {props.markets.length > 0 && (
+            <div className="tnum mb-6 space-y-1 text-sm text-secondary">
+              <p>Every prop line priced, bet or not. Brier score, lower is better; bets lean on the model only as far as it beats the market.</p>
+              {props.markets.map((m) => (
+                <p key={m.market}>
+                  <span className="font-medium text-primary">{m.label}</span> · {m.n} lines · model{" "}
+                  <span className="font-medium text-primary">{num(m.brier_model, 4)}</span>, market{" "}
+                  <span className="font-medium text-primary">{num(m.brier_market, 4)}</span> · trust{" "}
+                  <span className="font-medium text-primary">{pct(m.trust.model_weight)}</span>
+                  {m.trust.learned ? "" : m.trust.borrowed ? " (borrowed until 300 lines)" : " (starting share)"}
+                </p>
+              ))}
+            </div>
           )}
           <SectionTitle>History{settled ? "" : " (none settled yet)"}</SectionTitle>
           <Card className="p-2">
