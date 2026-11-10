@@ -285,6 +285,8 @@ class PropBet(Base):
     playable_line: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     # Set when a late injury change undercut the pick and an update was texted.
     flag: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # A lean, not a bet (migration 019): sent and graded, never staked.
+    lean: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Single-stat guidance sent with the pick (migration 007): per stat, the
     # projection and the lines at which the model would take the over / the under.
     stat_guide: Mapped[dict | None] = mapped_column(JSON, nullable=True)

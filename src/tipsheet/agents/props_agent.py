@@ -131,7 +131,8 @@ def sync_prop_odds(
     open_markets: dict[str, set[str]] = defaultdict(set)
     if only_open_bets:
         for gid, market in session.execute(
-            select(PropBet.game_id, PropBet.market).where(PropBet.settled_at.is_(None))
+            select(PropBet.game_id, PropBet.market)
+            .where(PropBet.settled_at.is_(None), PropBet.lean.is_(False))  # leans don't need a close
         ):
             open_markets[gid].add(market)
 
@@ -550,9 +551,10 @@ def _reason(mean: float, d: betting.PropDecision, market: str, log: list[GameLin
                       f"{d.side} in {hits} of his last {len(last)}", *notes])
 
 
-def record_prop_bets(session: Session, chosen: list[dict], as_of: datetime) -> int:
-    """Record the chosen prop bets. One bet per player per game; returns how many
-    were new."""
+def record_prop_bets(session: Session, chosen: list[dict], as_of: datetime,
+                     lean: bool = False) -> int:
+    """Record the chosen prop bets — or, with `lean`, leans: graded like bets but never
+    staked. One per player per game; returns how many were new."""
     placed = 0
     for c in chosen:
         d = c["decision"]
@@ -564,7 +566,8 @@ def record_prop_bets(session: Session, chosen: list[dict], as_of: datetime) -> i
                 market=c["market"], side=d.side, line=d.line, sportsbook=d.sportsbook,
                 n_books=d.n_books, decimal_odds=d.decimal_odds, model_prob=d.model_prob,
                 market_prob=d.market_prob, edge=d.edge, ev=d.expected_value,
-                stake_fraction=d.stake_fraction, proj_mean=round(c["proj_mean"], 3),
+                stake_fraction=0.0 if lean else d.stake_fraction, lean=lean,
+                proj_mean=round(c["proj_mean"], 3),
                 proj_phi=round(c["proj_phi"], 3), proj_minutes=c["proj_minutes"],
                 notes=c["reason"], stat_guide=c["stat_guide"],
                 playable_odds=d.playable_odds, playable_line=d.playable_line,
@@ -680,11 +683,12 @@ def settle_prop_bets(session: Session) -> dict:
 
 
 def track_record(session: Session) -> dict:
-    """Paper record on props: bets (CLV first), plus the model vs. the market on
+    """Paper record on props: bets (CLV first), leans, plus the model vs. the market on
     every line it priced."""
-    bets = session.execute(
+    settled = session.execute(
         select(PropBet).where(PropBet.settled_at.is_not(None), PropBet.result != "void")
     ).scalars().all()
+    bets = [b for b in settled if not b.lean]
     decided = [b for b in bets if b.result in ("won", "lost")]
     staked = sum(float(b.stake_fraction) for b in bets)
     clvs = [float(b.clv) for b in bets if b.clv is not None]
@@ -715,6 +719,7 @@ def track_record(session: Session) -> dict:
                 hits += g["actual"] < g["under_at"]
     if calls:
         record["guide"] = {"calls": calls, "hits": hits, "target": GUIDE_PROB}
+    record["leans"] = lean_record([b for b in settled if b.lean])
 
     # The model against the market on every line it priced, market by market: each
     # earns its own trust.
@@ -738,9 +743,20 @@ def track_record(session: Session) -> dict:
     return record
 
 
-def todays_bets(session: Session, game_date: date) -> list[PropBet]:
+def lean_record(leans: list[PropBet]) -> dict:
+    """Settled leans as if each were a flat 1-unit bet at the price it was sent at."""
+    won = [b for b in leans if b.result == "won"]
+    lost = [b for b in leans if b.result == "lost"]
+    units = sum(float(b.decimal_odds) - 1 for b in won) - len(lost)
+    return {"n": len(leans), "wins": len(won), "losses": len(lost),
+            "pushes": sum(b.result == "push" for b in leans), "units": round(units, 2)}
+
+
+def todays_bets(session: Session, game_date: date, lean: bool = False) -> list[PropBet]:
+    """The day's prop bets, or with `lean` its leans."""
     return session.execute(
         select(PropBet).join(Game, PropBet.game_id == Game.game_id)
-        .where(Game.game_date == game_date, PropBet.model_version == MODEL_VERSION)
-        .order_by(PropBet.ev.desc())
+        .where(Game.game_date == game_date, PropBet.model_version == MODEL_VERSION,
+               PropBet.lean.is_(lean))
+        .order_by(PropBet.edge.desc())
     ).scalars().all()

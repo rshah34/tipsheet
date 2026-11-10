@@ -58,6 +58,8 @@ export interface Pick {
   playable_line: number | null;
   /** Set when late injury news undercut the pick. */
   flag: string | null;
+  /** A lean: the model's disagreement with the line, sent and graded but not staked. */
+  lean: boolean;
 }
 
 export interface GameCard {
@@ -280,6 +282,8 @@ export interface PicksPayload {
     avg_clv: number | null;
     clv_positive_rate: number | null;
     guide?: { calls: number; hits: number; target: number };
+    /** Settled leans, each scored as a flat 1-unit bet. */
+    leans: { n: number; wins: number; losses: number; pushes: number; units: number };
     /** The model against the market on every priced line, per market, and the model's
      *  share of each bet's probability there, learned from that record. */
     markets: {

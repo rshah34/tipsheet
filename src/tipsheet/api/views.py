@@ -346,7 +346,7 @@ def _pick_rows(session: Session, where, teams: dict[int, dict]) -> list[dict]:
             "result": None if bet.settled_at is None else ("won" if bet.won else "lost"),
             "actual": None, "notes": bet.reason, "guide": None,
             "line": None, "playable_odds": _f(bet.playable_odds), "playable_line": None,
-            "flag": bet.flag,
+            "flag": bet.flag, "lean": False,
         })
     for bet, game in session.execute(
         select(PropBet, Game).join(Game, PropBet.game_id == Game.game_id).where(where)
@@ -363,7 +363,7 @@ def _pick_rows(session: Session, where, teams: dict[int, dict]) -> list[dict]:
             "result": bet.result, "actual": _f(bet.actual_value), "notes": bet.notes,
             "guide": bet.stat_guide, "line": _f(bet.line),
             "playable_odds": _f(bet.playable_odds), "playable_line": _f(bet.playable_line),
-            "flag": bet.flag,
+            "flag": bet.flag, "lean": bet.lean,
         })
     rows.sort(key=lambda r: r["decided_at"] or "", reverse=True)
     return rows

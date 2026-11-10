@@ -58,7 +58,7 @@ def _stub_agents(monkeypatch, teams):
         (pipeline.analysis_agent, "run_predictions", []),
         (pipeline.data_agent, "sync_odds", {}),
         (pipeline.props_agent, "sync_prop_odds", {}),
-        (pipeline.picks, "make_picks", {"picks": []}),
+        (pipeline.picks, "make_picks", {"picks": [], "leans": []}),
         (pipeline.digest, "best_bets", "No bets today"),
         (pipeline.notify, "send", "ok"),
     ]:

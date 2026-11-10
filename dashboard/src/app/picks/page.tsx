@@ -15,22 +15,30 @@ const columns: Column<Pick>[] = [
     key: "label",
     header: "Pick",
     sort: (p) => p.label,
-    render: (p) =>
-      p.player_id ? (
-        <Link href={`/players/${p.player_id}`} className="font-medium text-primary hover:underline">
-          {p.label}
-        </Link>
-      ) : (
-        <span className="font-medium text-primary">{p.label}</span>
-      ),
+    render: (p) => (
+      <>
+        {p.player_id ? (
+          <Link href={`/players/${p.player_id}`} className="font-medium text-primary hover:underline">
+            {p.label}
+          </Link>
+        ) : (
+          <span className="font-medium text-primary">{p.label}</span>
+        )}
+        {p.lean && (
+          <span title="Not a bet: the model's disagreement with the line, graded but not staked" className="ml-2 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[11px] font-medium text-secondary">
+            lean
+          </span>
+        )}
+      </>
+    ),
   },
   { key: "matchup", header: "Game", render: (p) => <Link href={`/games/${p.game_id}`} className="hover:underline">{p.matchup}</Link> },
   { key: "odds", header: "Price", align: "right", sort: (p) => p.odds, render: (p) => american(p.odds) },
   { key: "edge", header: "Edge", align: "right", sort: (p) => p.edge, render: (p) => (p.edge == null ? "—" : signed(p.edge * 100)) },
-  { key: "stake", header: "Stake", align: "right", sort: (p) => p.stake, render: (p) => (p.stake == null ? "—" : `${(p.stake * 100).toFixed(1)}u`) },
+  { key: "stake", header: "Stake", align: "right", sort: (p) => p.stake, render: (p) => (p.lean ? "—" : p.stake == null ? "—" : `${(p.stake * 100).toFixed(1)}u`) },
   { key: "result", header: "Result", sort: (p) => p.result ?? "", render: (p) => <ResultBadge result={p.result} /> },
   { key: "actual", header: "Actual", align: "right", sort: (p) => p.actual, render: (p) => (p.actual == null ? "" : num(p.actual, 0)) },
-  { key: "pnl", header: "Units", align: "right", sort: (p) => p.pnl, render: (p) => (p.pnl == null ? "" : signed(p.pnl * 100, 2)) },
+  { key: "pnl", header: "Units", align: "right", sort: (p) => p.pnl, render: (p) => (p.pnl == null || p.lean ? "" : signed(p.pnl * 100, 2)) },
   { key: "clv", header: "CLV", align: "right", title: "Closing-line value, in probability points", sort: (p) => p.clv, render: (p) => (p.clv == null ? "" : signed(p.clv * 100)) },
 ];
 
@@ -91,12 +99,17 @@ export default function PicksPage() {
         </div>
       ) : (
         <>
-          <div className="my-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="my-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
             <Tile label="Prop picks" value={`${props.wins}-${props.losses}${props.pushes ? `-${props.pushes}` : ""}`} hint={`${signed(props.units)} units · ROI ${pct(props.roi, 1)}`} />
             <Tile
               label="Prop closing-line value"
               value={props.avg_clv == null ? "—" : `${signed(props.avg_clv * 100)} pts`}
               hint={props.clv_positive_rate == null ? "no closing prices yet" : `beat the close ${pct(props.clv_positive_rate)} of the time`}
+            />
+            <Tile
+              label="Prop leans"
+              value={props.leans.n ? `${props.leans.wins}-${props.leans.losses}${props.leans.pushes ? `-${props.leans.pushes}` : ""}` : "—"}
+              hint={props.leans.n ? `${signed(props.leans.units)} units at 1 each · not bets` : "not bets; graded after each game"}
             />
             <Tile label="Game picks" value={games.n_bets} hint={games.n_bets ? `won ${pct(games.win_rate)} · ROI ${pct(games.roi, 1)}` : "none settled"} />
             <Tile

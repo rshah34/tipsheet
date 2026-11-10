@@ -276,7 +276,7 @@ def props_record():
 
     with SessionLocal() as session:
         rec = props_agent.track_record(session)
-    if not rec["n_bets"] and "lines" not in rec and "guide" not in rec:
+    if not rec["n_bets"] and not rec["markets"] and not rec["leans"]["n"]:
         rprint("[yellow]No settled prop bets or scored lines yet.[/yellow]")
         return
     if rec["n_bets"]:
@@ -288,6 +288,10 @@ def props_record():
         g = rec["guide"]
         rprint(f"[bold]Single-stat guidance[/bold]: {g['hits']} of {g['calls']} calls came in "
                f"({g['hits'] / g['calls']:.0%}; the model's bar is {g['target']:.0%})")
+    if rec["leans"]["n"]:
+        ln = rec["leans"]
+        rprint(f"[bold]Leans[/bold] (not bets): {ln['wins']}-{ln['losses']}-{ln['pushes']}  "
+               f"{ln['units']:+.1f}u at 1 unit each")
     for m in rec.get("markets", []):
         t = m["trust"]
         how = ("learned on its own lines" if t["learned"] else

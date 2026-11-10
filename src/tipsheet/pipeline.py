@@ -130,6 +130,7 @@ def run_daily(session: Session, on: date | None = None) -> dict:
     def choose() -> dict:
         result = picks.make_picks(session, on, data=data)
         result["picks"] = [digest.pick_label(c) for c in result["picks"]]
+        result["leans"] = [digest.pick_label(c) for c in result["leans"]]
         return result
 
     steps |= {
@@ -147,9 +148,9 @@ def run_daily(session: Session, on: date | None = None) -> dict:
 
 
 def _send_digest(session: Session, on: date) -> dict:
-    """The day's message; a day with no bets goes out quietly."""
+    """The day's message; a day with no bets (leans only, or nothing) goes out quietly."""
     text = digest.best_bets(session, on)
-    return {"text": notify.send(text, quiet=text.endswith(digest.NO_BETS))}
+    return {"text": notify.send(text, quiet=digest.NO_BETS in text)}
 
 
 def _game_odds(session: Session, on: date) -> dict:

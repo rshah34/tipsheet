@@ -20,6 +20,8 @@ from tipsheet.config import settings
 from tipsheet.db.models import Bet, Game, PropBet, Team
 from tipsheet.features.props import MARKET_LABELS, PropsData, load_props_data
 
+# Leans sent each day alongside any bets: not staked, graded on their own record.
+LEANS_PER_DAY = 3
 # No single game carries more than this share of bankroll across its picks.
 _MAX_GAME_STAKE = 0.05
 # A player with this many minutes a night changing status is worth a heads-up on a
@@ -58,14 +60,16 @@ def choose(games: list[dict], props: list[dict], slots: int) -> list[dict]:
     return out
 
 
-def picks_made(session: Session, game_date: date) -> int:
-    """How many bets are already on the books for a date."""
-    n_games = session.execute(
-        select(func.count()).select_from(Bet).join(Game, Bet.game_id == Game.game_id)
-        .where(Game.game_date == game_date)
-    ).scalar_one()
+def picks_made(session: Session, game_date: date, lean: bool = False) -> int:
+    """How many bets (or, with `lean`, prop leans) are already on the books for a date."""
     n_props = session.execute(
         select(func.count()).select_from(PropBet).join(Game, PropBet.game_id == Game.game_id)
+        .where(Game.game_date == game_date, PropBet.lean.is_(lean))
+    ).scalar_one()
+    if lean:
+        return n_props
+    n_games = session.execute(
+        select(func.count()).select_from(Bet).join(Game, Bet.game_id == Game.game_id)
         .where(Game.game_date == game_date)
     ).scalar_one()
     return n_games + n_props
@@ -97,8 +101,20 @@ def make_picks(
             session, [c for c in chosen if c["kind"] == "game"], as_of)
         placed += props_agent.record_prop_bets(
             session, [c for c in chosen if c["kind"] == "prop"], as_of)
+
+    # Leans: the model's own biggest disagreements with the line (trusting it fully,
+    # under the same cap on how far it may stray), for players not already picked.
+    leans: list[dict] = []
+    room = LEANS_PER_DAY - picks_made(session, game_date, lean=True)
+    if room > 0:
+        picked = {c["player_id"] for c in chosen if c["kind"] == "prop"}
+        pool = props_agent.price_props(session, game_date, data=data, as_of=as_of,
+                                       log_lines=False, market_weight=0.0)
+        leans = [c for c in pool if c["player_id"] not in picked][:room]
+        if not dry_run:
+            props_agent.record_prop_bets(session, leans, as_of, lean=True)
     return {"date": str(game_date), "game_candidates": len(games), "prop_candidates": len(props),
-            "slots": max(slots, 0), "placed": placed, "picks": chosen}
+            "slots": max(slots, 0), "placed": placed, "picks": chosen, "leans": leans}
 
 
 # --------------------------------------------------------------------------- #
@@ -149,7 +165,7 @@ def recheck(
     views: dict[tuple[str, int], props_agent.TeamView] = {}
     for bet, game in session.execute(
         select(PropBet, Game).join(Game, PropBet.game_id == Game.game_id)
-        .where(*live, PropBet.settled_at.is_(None), PropBet.flag.is_(None))
+        .where(*live, PropBet.settled_at.is_(None), PropBet.flag.is_(None), PropBet.lean.is_(False))
     ).all():
         if tipped(game) or bet.team_id is None:
             continue

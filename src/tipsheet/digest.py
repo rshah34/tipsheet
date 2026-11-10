@@ -75,10 +75,11 @@ def best_bets(session: Session, game_date: date) -> str:
         select(Game.game_id, Game.tipoff_at).where(Game.game_date == game_date)
     ).all())
 
+    leans = props_agent.todays_bets(session, game_date, lean=True)
     lines = [f"NBA best bets, {game_date:%a %b %-d}"]
     if not props and not game_bets:
         lines.append(NO_BETS)
-        return "\n".join(lines)
+        return "\n".join(lines + _leans(leans, teams))
 
     def detail(bet, why: str | None, playable: str | None) -> list[str]:
         when = _local_time(tips.get(bet.game_id))
@@ -128,7 +129,20 @@ def best_bets(session: Session, game_date: date) -> str:
     total = sum(float(b.stake_fraction) for b in props) + sum(
         float(b.stake_fraction) for b, _ in game_bets)
     lines.append(f"\nTotal at risk: {_stake(total)}. Paper trading: verify the price before betting.")
-    return "\n".join(lines)
+    return "\n".join(lines + _leans(leans, teams))
+
+
+def _leans(leans: list, teams: dict[int, str]) -> list[str]:
+    """The leans block: where the model most disagrees with the line. Not bets."""
+    if not leans:
+        return []
+    out = ["", "Leans (not bets: the model's biggest disagreements with the line)"]
+    for b in leans:
+        out.append(f"- {b.player_name} ({teams.get(b.team_id, '?')}) {b.side.upper()} "
+                   f"{float(b.line):g} {MARKET_LABELS.get(b.market, b.market)} "
+                   f"{_american(float(b.decimal_odds))} {_BOOKS.get(b.sportsbook, b.sportsbook)}: "
+                   f"model {float(b.model_prob):.0%}, mkt {float(b.market_prob):.0%}")
+    return out
 
 
 def pick_update(game_date: date, updates: list[str]) -> str:
