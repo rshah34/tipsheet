@@ -15,6 +15,7 @@ from datetime import date, datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from tipsheet import digest
 from tipsheet.agents import betting_agent, data_agent, props_agent
 from tipsheet.config import settings
 from tipsheet.db.models import Bet, Game, PropBet, Team
@@ -222,8 +223,8 @@ def recheck(
         if not news:
             continue
         bet.flag = "; ".join(news)
-        updates.append(f"HEADS UP: {abbr.get(ours, '?')} to win "
-                       f"{'vs' if bet.side == 'home' else 'at'} {abbr.get(theirs, '?')}. "
-                       f"{bet.flag[0].upper()}{bet.flag[1:]}.")
+        pick = digest.game_pick(abbr.get(ours, "?"), abbr.get(theirs, "?"), bet.side == "home",
+                                bet.market, bet.line)
+        updates.append(f"HEADS UP: {pick}. {bet.flag[0].upper()}{bet.flag[1:]}.")
     session.commit()
     return updates

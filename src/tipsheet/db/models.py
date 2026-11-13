@@ -215,6 +215,9 @@ class Bet(Base):
     model_version: Mapped[str] = mapped_column(String, nullable=False)
     decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     side: Mapped[str] = mapped_column(String, nullable=False)  # 'home' | 'away'
+    # 'h2h' (to win) or 'spread'; a spread bet's line is from the side bet (migration 020).
+    market: Mapped[str] = mapped_column(String, nullable=False, default="h2h")
+    line: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     model_prob: Mapped[float] = mapped_column(Numeric, nullable=False)
     market_prob: Mapped[float] = mapped_column(Numeric, nullable=False)
     edge: Mapped[float] = mapped_column(Numeric, nullable=False)

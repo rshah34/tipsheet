@@ -233,3 +233,50 @@ def test_trusting_the_model_less_never_lets_a_wilder_disagreement_through():
     assert decide_prop(quotes, wild, market_weight=0.9) is None   # raw gap over the cap
     assert decide_prop(quotes, fair, market_weight=0.5).side == "over"
     assert decide_prop(quotes, fair, market_weight=0.9) is None   # 10% trust: edge 1.2 pts
+
+
+# --------------------------------------------------------------------------- #
+# Spread bets.
+# --------------------------------------------------------------------------- #
+from tipsheet import digest  # noqa: E402
+from tipsheet.agents.betting_agent import (  # noqa: E402
+    cover_prob,
+    market_margin,
+    spread_decision,
+    spread_result,
+)
+
+_EVEN = american_to_decimal(-110)
+_DK = frozenset({"draftkings"})
+
+
+def test_a_line_at_even_prices_is_the_margin_the_market_expects():
+    assert abs(market_margin({"draftkings": (-5.5, _EVEN, _EVEN)}) - 5.5) < 1e-9
+    # Books on different lines are compared in points: -5 and -6 at even money is 5.5.
+    assert abs(market_margin({"a": (-5.0, _EVEN, _EVEN), "b": (-6.0, _EVEN, _EVEN)}) - 5.5) < 1e-9
+    assert cover_prob(5.5, -5.5) == 0.5
+    assert market_margin({}) is None
+
+
+def test_spread_bet_backs_the_side_the_model_likes_at_your_books_line():
+    spreads = {"draftkings": (-3.5, _EVEN, _EVEN), "fanduel": (-4.0, _EVEN, _EVEN)}
+    kw = dict(market_weight=0.75, min_edge=0.025, max_edge=0.0625)
+    line, d = spread_decision(10.0, spreads, _DK, **kw)       # model: home by 10
+    assert (d.side, line, d.sportsbook) == ("home", -3.5, "draftkings")
+    line, d = spread_decision(-3.0, spreads, _DK, **kw)       # model: away by 3
+    assert (d.side, line) == ("away", 3.5)
+    assert spread_decision(4.5, spreads, _DK, **kw) == (None, None)   # close to the market
+    assert spread_decision(30.0, spreads, _DK, **kw) == (None, None)  # too far to trust
+
+
+def test_spread_bets_cover_lose_or_push():
+    assert spread_result("home", -3.5, 4) is True
+    assert spread_result("away", 3.5, 3) is True     # lost by 3, covered 3.5
+    assert spread_result("away", 3.5, 4) is False
+    assert spread_result("home", -4.0, 4) is None    # push
+
+
+def test_game_picks_read_as_to_win_or_the_spread():
+    assert digest.game_pick("GSW", "HOU", False) == "GSW to win at HOU"
+    assert digest.game_pick("WAS", "DET", False, "spread", 9.5) == "WAS +9.5 at DET"
+    assert digest.game_pick("DET", "WAS", True, "spread", -9.5) == "DET -9.5 vs WAS"

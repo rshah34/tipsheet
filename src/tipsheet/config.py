@@ -37,8 +37,8 @@ class Settings(BaseSettings):
     # Stop buying prop snapshots once the Odds API quota falls to this many credits,
     # so game lines (the CLV record) never get starved.
     odds_quota_reserve: int = 50
-    # Game-line markets per snapshot (one credit each). The moneyline alone is what
-    # bets and CLV use; spreads/totals only add reporting.
+    # Game-line markets per snapshot (one credit each). Game bets are on the moneyline
+    # and the spread; totals only add reporting.
     game_markets: str = "h2h,spreads,totals"
     # Books whose prices are bought; together they are the market consensus. Up to
     # ten cost the same credits as one region.

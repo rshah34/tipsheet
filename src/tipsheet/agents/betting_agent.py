@@ -1,7 +1,7 @@
 """Betting agent: the DB-touching orchestration around the pure `betting` math.
 
 Pre-tip it proposes a sized paper bet for each game where the game model's
-probability disagrees enough with the market (which of those get recorded is the
+probability — to win, or to cover the spread — disagrees enough with the market (which of those get recorded is the
 daily picks' call — see `picks.py`). After games resolve it settles each
 bet with CLV (vs. the closing line) and P&L.
 """
@@ -9,6 +9,7 @@ bet with CLV (vs. the closing line) and P&L.
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from statistics import NormalDist
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -18,7 +19,7 @@ from tipsheet import betting
 from tipsheet.betting import decide_bet_decimal, simulate_paper_trade
 from tipsheet.config import my_books
 from tipsheet.db.models import Bet, Game, Odds, Prediction
-from tipsheet.features.games import GAME_MODEL
+from tipsheet.features.games import GAME_MODEL, MARGIN_SD
 
 
 def _latest_moneylines(odds_rows: list[Odds], closing_only: bool = False) -> dict[str, tuple[float, float]]:
@@ -63,6 +64,55 @@ def best_prices(odds_rows: list[Odds], books: frozenset[str]) -> dict[str, tuple
     return out
 
 
+def _latest_spreads(odds_rows: list[Odds], closing_only: bool = False) -> dict[str, tuple[float, float, float]]:
+    """sportsbook -> (home line, home decimal, away decimal) from each book's newest spread."""
+    rows = [r for r in odds_rows if r.spread_home is not None
+            and r.spread_home_price is not None and r.spread_away_price is not None
+            and (r.is_closing_line or not closing_only)]
+    latest: dict[str, Odds] = {}
+    for r in rows:
+        if r.sportsbook not in latest or r.captured_at > latest[r.sportsbook].captured_at:
+            latest[r.sportsbook] = r
+    return {book: (float(r.spread_home), betting.american_to_decimal(r.spread_home_price),
+                   betting.american_to_decimal(r.spread_away_price))
+            for book, r in latest.items()}
+
+
+def cover_prob(home_margin: float, home_line: float) -> float:
+    """P(home covers `home_line`) when results spread normally around `home_margin`."""
+    return NormalDist().cdf((home_margin + home_line) / MARGIN_SD)
+
+
+def market_margin(spreads: dict[str, tuple[float, float, float]]) -> float | None:
+    """The home margin the market expects: each book's line and de-vigged price read as
+    a margin, averaged. Books hang different lines, so they are compared in points."""
+    if not spreads:
+        return None
+    inv = NormalDist().inv_cdf
+    return sum(-line + MARGIN_SD * inv(betting.devig_two_way(1 / h, 1 / a)[0])
+               for line, h, a in spreads.values()) / len(spreads)
+
+
+def spread_decision(model_margin: float, spreads: dict[str, tuple[float, float, float]],
+                    books: frozenset[str], **kwargs) -> tuple[float | None, betting.BetDecision | None]:
+    """The best spread bet at your own books: (the bet side's line, decision), or (None,
+    None). At each book's line, the model's chance of covering is weighed against the
+    market's, read off its consensus margin."""
+    mkt = market_margin(spreads)
+    if mkt is None:
+        return None, None
+    best: tuple[float | None, betting.BetDecision | None] = (None, None)
+    for book, (line, home_dec, away_dec) in spreads.items():
+        if book not in books:
+            continue
+        fair = cover_prob(mkt, line)
+        d = decide_bet_decimal(cover_prob(model_margin, line), 1 / fair, 1 / (1 - fair),
+                               prices={"home": (book, home_dec), "away": (book, away_dec)}, **kwargs)
+        if d.side != "none" and d.stake_fraction > 0 and (best[1] is None or d.edge > best[1].edge):
+            best = (line if d.side == "home" else -line, d)
+    return best
+
+
 def game_candidates(
     session: Session,
     game_date: date,
@@ -75,11 +125,12 @@ def game_candidates(
     kelly_multiplier: float = 0.25,
     max_stake: float = 0.03,
 ) -> list[dict]:
-    """Game-winner bets worth making right now, best edge first. Nothing is recorded.
+    """Game bets worth making right now, best edge first. Nothing is recorded.
 
     For each predicted game that hasn't tipped and isn't already bet: blend the
-    model's probability toward the current market, and keep it if the edge clears
-    the threshold. The market is every book's consensus; the bet is priced
+    model's probability toward the current market, to win and to cover the spread,
+    and keep the larger edge if it clears the threshold — one bet a game, since both
+    say the same thing. The market is every book's consensus; the bet is priced
     at the best of your own books (`MY_BOOKS`), and skipped if none has a playable
     price.
 
@@ -109,20 +160,27 @@ def game_candidates(
         if game.tipoff_at is not None and game.tipoff_at <= as_of:
             continue
         odds_rows = session.execute(select(Odds).where(Odds.game_id == game.game_id)).scalars().all()
+        kwargs = dict(market_weight=market_weight, min_edge=min_edge, max_edge=max_edge,
+                      kelly_multiplier=kelly_multiplier, max_stake=max_stake)
+        options: list[tuple[str, float | None, betting.BetDecision]] = []
         cons = consensus_decimal_odds(odds_rows)
-        if cons is None:
-            continue  # no market to bet into
-        d = decide_bet_decimal(
-            float(pred.predicted_home_win_prob), cons[0], cons[1],
-            prices=best_prices(odds_rows, my_books()),
-            market_weight=market_weight, min_edge=min_edge, max_edge=max_edge,
-            kelly_multiplier=kelly_multiplier, max_stake=max_stake,
-        )
-        if d.side == "none" or d.stake_fraction <= 0:
+        if cons is not None:
+            d = decide_bet_decimal(float(pred.predicted_home_win_prob), cons[0], cons[1],
+                                   prices=best_prices(odds_rows, my_books()), **kwargs)
+            if d.side != "none" and d.stake_fraction > 0:
+                options.append(("h2h", None, d))
+        if pred.predicted_spread is not None:
+            line, d = spread_decision(float(pred.predicted_spread), _latest_spreads(odds_rows),
+                                      my_books(), **kwargs)
+            if d is not None:
+                options.append(("spread", line, d))
+        if not options:
             continue
+        market, line, d = max(options, key=lambda o: o[2].edge)
         factors = (pred.context_used or {}).get("key_factors") or []
         out.append({"kind": "game", "game_id": game.game_id, "prediction_id": pred.id,
                     "model_version": model_version, "decision": d, "edge": d.edge,
+                    "market": market, "line": line,
                     "reason": factors[0] if factors else None})
     out.sort(key=lambda c: c["edge"], reverse=True)
     return out
@@ -138,6 +196,7 @@ def record_game_bets(session: Session, chosen: list[dict], as_of: datetime) -> i
             pg_insert(Bet)
             .values(game_id=c["game_id"], prediction_id=c["prediction_id"],
                     model_version=c["model_version"], decided_at=as_of, side=d.side,
+                    market=c.get("market", "h2h"), line=c.get("line"),
                     model_prob=d.model_prob, market_prob=d.market_prob, edge=d.edge,
                     stake_fraction=d.stake_fraction, decimal_odds=d.decimal_odds,
                     sportsbook=d.sportsbook, playable_odds=d.playable_odds, reason=c["reason"])
@@ -151,9 +210,16 @@ def record_game_bets(session: Session, chosen: list[dict], as_of: datetime) -> i
     return placed
 
 
+def spread_result(side: str, line: float, home_margin: int) -> bool | None:
+    """True if a spread bet covered, False if not, None on a push."""
+    diff = (home_margin if side == "home" else -home_margin) + line
+    return None if diff == 0 else diff > 0
+
+
 def settle_bets(session: Session) -> dict:
     """Score unsettled bets whose game is final: P&L, and CLV — how far the market's
-    fair probability of our side moved toward us between the bet and the close."""
+    fair probability of our side moved toward us between the bet and the close. A
+    spread bet's close is read at our own line."""
     rows = session.execute(
         select(Bet, Game)
         .join(Game, Bet.game_id == Game.game_id)
@@ -162,16 +228,28 @@ def settle_bets(session: Session) -> dict:
 
     settled = 0
     for bet, game in rows:
+        stake, odds = float(bet.stake_fraction), float(bet.decimal_odds)
+        odds_rows = session.execute(select(Odds).where(Odds.game_id == bet.game_id)).scalars().all()
+        if bet.market == "spread":
+            won = spread_result(bet.side, float(bet.line), game.home_score - game.away_score)
+            bet.won = won
+            bet.pnl = 0.0 if won is None else round(stake * (odds - 1) if won else -stake, 4)
+            close = market_margin(_latest_spreads(odds_rows, closing_only=True))
+            if close is not None:
+                home_line = float(bet.line) if bet.side == "home" else -float(bet.line)
+                p_home = cover_prob(close, home_line)
+                bet.clv = round((p_home if bet.side == "home" else 1 - p_home)
+                                - float(bet.market_prob), 4)
+            bet.settled_at = datetime.now(timezone.utc)
+            settled += 1
+            continue
+
         home_won = game.home_score > game.away_score
         won = (bet.side == "home" and home_won) or (bet.side == "away" and not home_won)
-        stake, odds = float(bet.stake_fraction), float(bet.decimal_odds)
         bet.won = won
         bet.pnl = round(stake * (odds - 1) if won else -stake, 4)
 
-        closing = consensus_decimal_odds(
-            session.execute(select(Odds).where(Odds.game_id == bet.game_id)).scalars().all(),
-            closing_only=True,
-        )
+        closing = consensus_decimal_odds(odds_rows, closing_only=True)
         if closing is not None:
             fair = betting.devig_two_way(1 / closing[0], 1 / closing[1])
             bet.closing_decimal_odds = round(closing[0] if bet.side == "home" else closing[1], 3)
@@ -183,11 +261,15 @@ def settle_bets(session: Session) -> dict:
     return {"settled": settled}
 
 
-def track_record(session: Session, model_version: str | None = None) -> dict:
-    """Paper-trade summary over settled bets (CLV is the north star)."""
-    stmt = select(Bet).where(Bet.settled_at.is_not(None))
+def track_record(session: Session, model_version: str | None = None,
+                 market: str | None = None) -> dict:
+    """Paper-trade summary over settled bets, in one market or both (CLV is the
+    north star). Pushes are left out."""
+    stmt = select(Bet).where(Bet.settled_at.is_not(None), Bet.won.is_not(None))
     if model_version:
         stmt = stmt.where(Bet.model_version == model_version)
+    if market:
+        stmt = stmt.where(Bet.market == market)
     bets = session.execute(stmt).scalars().all()
 
     data = [

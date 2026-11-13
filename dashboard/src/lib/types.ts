@@ -295,14 +295,17 @@ export interface PicksPayload {
       trust: { model_weight: number; lines: number; learned: boolean; borrowed?: boolean };
     }[];
   };
-  games: {
-    n_bets: number;
-    win_rate: number | null;
-    roi: number | null;
-    final_bankroll: number;
-    avg_clv: number | null;
-    clv_positive_rate: number | null;
-  };
+  games: GameRecord;
+  spreads: GameRecord;
+}
+
+export interface GameRecord {
+  n_bets: number;
+  win_rate: number | null;
+  roi: number | null;
+  final_bankroll: number;
+  avg_clv: number | null;
+  clv_positive_rate: number | null;
 }
 
 export interface CalibrationBin {

@@ -80,8 +80,8 @@ function GameModelAccuracy() {
 export default function PicksPage() {
   const { data, error, loading } = useApi<PicksPayload>("/picks");
   if (!data) return <PageState loading={loading} error={error} />;
-  const { props, games, picks } = data;
-  const settled = props.n_bets + games.n_bets;
+  const { props, games, spreads, picks } = data;
+  const settled = props.n_bets + games.n_bets + spreads.n_bets;
 
   return (
     <div>
@@ -99,7 +99,7 @@ export default function PicksPage() {
         </div>
       ) : (
         <>
-          <div className="my-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <div className="my-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
             <Tile label="Prop picks" value={`${props.wins}-${props.losses}${props.pushes ? `-${props.pushes}` : ""}`} hint={`${signed(props.units)} units · ROI ${pct(props.roi, 1)}`} />
             <Tile
               label="Prop closing-line value"
@@ -111,7 +111,8 @@ export default function PicksPage() {
               value={props.leans.n ? `${props.leans.wins}-${props.leans.losses}${props.leans.pushes ? `-${props.leans.pushes}` : ""}` : "—"}
               hint={props.leans.n ? `${signed(props.leans.units)} units at 1 each · not bets` : "not bets; graded after each game"}
             />
-            <Tile label="Game picks" value={games.n_bets} hint={games.n_bets ? `won ${pct(games.win_rate)} · ROI ${pct(games.roi, 1)}` : "none settled"} />
+            <Tile label="Game picks, to win" value={games.n_bets} hint={games.n_bets ? `won ${pct(games.win_rate)} · ROI ${pct(games.roi, 1)}` : "none settled"} />
+            <Tile label="Game picks, spread" value={spreads.n_bets} hint={spreads.n_bets ? `covered ${pct(spreads.win_rate)} · ROI ${pct(spreads.roi, 1)}` : "none settled"} />
             <Tile
               label="Single-stat guidance"
               value={props.guide ? pct(props.guide.hits / props.guide.calls) : "—"}

@@ -14,6 +14,7 @@ from statistics import NormalDist
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from tipsheet import digest
 from tipsheet.agents import betting_agent, data_agent, news_agent, props_agent
 from tipsheet.agents.data_agent import _season_for_date
 from tipsheet.data.nba_stats import is_preseason
@@ -338,14 +339,15 @@ def _pick_rows(session: Session, where, teams: dict[int, dict]) -> list[dict]:
             "kind": "game", "game_id": game.game_id, "date": game.game_date.isoformat(),
             "decided_at": _iso(bet.decided_at),
             "matchup": f"{teams[game.away_team_id]['abbr']} @ {teams[game.home_team_id]['abbr']}",
-            "label": f"{teams[side]['abbr']} to win {'vs' if bet.side == 'home' else 'at'} "
-                     f"{teams[other]['abbr']}",
+            "label": digest.game_pick(teams[side]["abbr"], teams[other]["abbr"],
+                                      bet.side == "home", bet.market, bet.line),
             "player_id": None, "book": bet.sportsbook, "odds": _f(bet.decimal_odds),
             "model": _f(bet.model_prob), "market": _f(bet.market_prob), "edge": _f(bet.edge),
             "stake": _f(bet.stake_fraction), "pnl": _f(bet.pnl), "clv": _f(bet.clv),
-            "result": None if bet.settled_at is None else ("won" if bet.won else "lost"),
+            "result": None if bet.settled_at is None else (
+                "push" if bet.won is None else "won" if bet.won else "lost"),
             "actual": None, "notes": bet.reason, "guide": None,
-            "line": None, "playable_odds": _f(bet.playable_odds), "playable_line": None,
+            "line": _f(bet.line), "playable_odds": _f(bet.playable_odds), "playable_line": None,
             "flag": bet.flag, "lean": False,
         })
     for bet, game in session.execute(
@@ -720,7 +722,8 @@ def picks(session: Session) -> dict:
     return {
         "picks": _pick_rows(session, Game.game_id.is_not(None), teams)[:300],
         "props": props_agent.track_record(session),
-        "games": betting_agent.track_record(session),
+        "games": betting_agent.track_record(session, market="h2h"),
+        "spreads": betting_agent.track_record(session, market="spread"),
     }
 
 

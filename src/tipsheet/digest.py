@@ -50,10 +50,20 @@ def _teams(session: Session) -> dict[int, str]:
     return {t.team_id: t.abbreviation for t in session.execute(select(Team)).scalars()}
 
 
+def game_pick(ours: str, theirs: str, home: bool, market: str = "h2h", line=None) -> str:
+    """A game pick in words: "GSW to win at HOU", or on the spread "WAS +9.5 at DET"."""
+    where = "vs" if home else "at"
+    if market == "spread":
+        return f"{ours} {float(line):+g} {where} {theirs}"
+    return f"{ours} to win {where} {theirs}"
+
+
 def pick_label(candidate: dict) -> str:
     """One-line description of a pick, for run logs."""
     d = candidate["decision"]
     if candidate["kind"] == "game":
+        if candidate.get("market") == "spread":
+            return f"game {candidate['game_id']} {d.side} {candidate['line']:+g}"
         return f"game {candidate['game_id']} {d.side} ML"
     return (f"{candidate['player_name']} {d.side} {d.line:g} "
             f"{MARKET_LABELS.get(candidate['market'], candidate['market'])}")
@@ -113,9 +123,8 @@ def best_bets(session: Session, game_date: date) -> str:
     for bet, game in game_bets:
         side, other = ((game.home_team_id, game.away_team_id) if bet.side == "home"
                        else (game.away_team_id, game.home_team_id))
-        where = "vs" if bet.side == "home" else "at"
         entries.append((float(bet.edge), [
-            f"{teams.get(side, '?')} to win {where} {teams.get(other, '?')} "
+            f"{game_pick(teams.get(side, '?'), teams.get(other, '?'), bet.side == 'home', bet.market, bet.line)} "
             f"{_american(float(bet.decimal_odds))} {book(bet.sportsbook)}".rstrip(),
             *detail(bet, bet.reason, _playable(bet.playable_odds)),
         ]))
